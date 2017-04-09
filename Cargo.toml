@@ -4,3 +4,6 @@ version = "0.1.0"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 
 [dependencies]
+futures = "0.1.13"
+# TODO: change to hyper from crates.io when the async version is released
+hyper = { git = "https://github.com/hyperium/hyper.git" }
