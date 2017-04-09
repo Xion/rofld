@@ -5,8 +5,11 @@ authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 
 [dependencies]
 futures = "0.1.13"
+glob = "0.2"
 # TODO: change to hyper from crates.io when the async version is released
 hyper = { git = "https://github.com/hyperium/hyper.git" }
+image = "0.12"
+lazy_static = "*"
 serde = "0.9"
 serde_derive = "0.9"
 serde_json = "0.9"
