@@ -4,11 +4,20 @@
 
 extern crate futures;
 extern crate hyper;
+extern crate serde;
+extern crate serde_json;
 
 
-use futures::future::{self, FutureResult};
-use hyper::{Get, StatusCode};
+mod ext;
+
+
+use futures::Future;
+use futures::future::{self, BoxFuture};
+use hyper::{Get, Post, StatusCode};
 use hyper::server::{Http, Service, Request, Response};
+use serde_json::Value as Json;
+
+use ext::hyper::BodyExt;
 
 
 const HOST: &'static str = "0.0.0.0";
@@ -22,20 +31,40 @@ fn main() {
 }
 
 
-/// Hyper async service implementing all the functionality.
+/// Hyper async service implementing ALL the functionality.
 pub struct Rofl;
 
 impl Service for Rofl {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = FutureResult<Response, hyper::Error>;
+    type Future = BoxFuture<Response, hyper::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
-        let result = match (req.method(), req.path()) {
-            (&Get, "/") => Response::new().with_body("Hello world".as_bytes()),
-            _ => Response::new().with_status(StatusCode::NotFound),
-        };
-        future::ok(result)
+        match (req.method(), req.path()) {
+            (&Get, "/") => box_ok(Response::new().with_body("Hello world")),
+            (&Post, "/") => {
+                req.body().into_bytes().map(|bytes| {
+                    let json: Json = match serde_json::from_reader(&*bytes) {
+                        Ok(json) => json,
+                        Err(_) => return Response::new().with_status(StatusCode::BadRequest),
+                    };
+                    match json.pointer("/template").and_then(|t| t.as_str()) {
+                        Some(template) => Response::new().with_body(template.to_owned()),
+                        None => Response::new()
+                            .with_status(StatusCode::BadRequest)
+                            .with_body("git gud"),
+                    }
+                }).boxed()
+            },
+            _ => box_ok(Response::new().with_status(StatusCode::NotFound)),
+        }
     }
+}
+
+
+pub fn box_ok<T, E>(t: T) -> BoxFuture<T, E>
+    where T: Send + 'static, E: Send + 'static
+{
+    future::ok(t).boxed()
 }
