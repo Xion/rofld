@@ -2,10 +2,11 @@
 //! rofld  -- Lulz on demand
 //!
 
-extern crate futures;
-extern crate hyper;
-extern crate serde;
-extern crate serde_json;
+             extern crate futures;
+             extern crate hyper;
+             extern crate serde;
+#[macro_use] extern crate serde_derive;
+             extern crate serde_json;
 
 
 mod ext;
@@ -15,7 +16,6 @@ use futures::Future;
 use futures::future::{self, BoxFuture};
 use hyper::{Get, Post, StatusCode};
 use hyper::server::{Http, Service, Request, Response};
-use serde_json::Value as Json;
 
 use ext::hyper::BodyExt;
 
@@ -42,16 +42,13 @@ impl Service for Rofl {
 
     fn call(&self, req: Request) -> Self::Future {
         match (req.method(), req.path()) {
-            (&Get, "/") => box_ok(Response::new().with_body("Hello world")),
+            (&Get, "/") => box_ok(Response::new()
+                .with_status(StatusCode::MethodNotAllowed)),
             (&Post, "/") => {
                 req.body().into_bytes().map(|bytes| {
-                    let json: Json = match serde_json::from_reader(&*bytes) {
-                        Ok(json) => json,
-                        Err(_) => return Response::new().with_status(StatusCode::BadRequest),
-                    };
-                    match json.pointer("/template").and_then(|t| t.as_str()) {
-                        Some(template) => Response::new().with_body(template.to_owned()),
-                        None => Response::new()
+                    match serde_json::from_reader::<_, ImageMacro>(&*bytes) {
+                        Ok(im) => Response::new().with_body(im.template),
+                        Err(_) => Response::new()
                             .with_status(StatusCode::BadRequest)
                             .with_body("git gud"),
                     }
@@ -60,6 +57,15 @@ impl Service for Rofl {
             _ => box_ok(Response::new().with_status(StatusCode::NotFound)),
         }
     }
+}
+
+/// Describes an image macro, used as an input structure.
+#[derive(Deserialize)]
+struct ImageMacro {
+    template: String,
+    top_text: Option<String>,
+    middle_text: Option<String>,
+    bottom_text: Option<String>,
 }
 
 

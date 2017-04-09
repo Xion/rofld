@@ -7,5 +7,6 @@ authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 futures = "0.1.13"
 # TODO: change to hyper from crates.io when the async version is released
 hyper = { git = "https://github.com/hyperium/hyper.git" }
-serde = "*"
-serde_json = "0.9.10"
+serde = "0.9"
+serde_derive = "0.9"
+serde_json = "0.9"
