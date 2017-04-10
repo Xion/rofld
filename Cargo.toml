@@ -4,12 +4,21 @@ version = "0.1.0"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 
 [dependencies]
+ansi_term = "0.9"
 futures = "0.1.13"
 glob = "0.2"
 # TODO: change to hyper from crates.io when the async version is released
 hyper = { git = "https://github.com/hyperium/hyper.git" }
 image = "0.12"
+isatty = "0.1.1"
 lazy_static = "*"
+log = "*"
+maplit = "0.1"
 serde = "0.9"
 serde_derive = "0.9"
 serde_json = "0.9"
+slog = "*"
+slog-envlogger = "0.5"
+slog-stdlog = "*"
+slog-stream = "1.2"
+time = "0.1"

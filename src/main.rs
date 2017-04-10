@@ -2,17 +2,31 @@
 //! rofld  -- Lulz on demand
 //!
 
+             extern crate ansi_term;
              extern crate futures;
              extern crate glob;
              extern crate hyper;
              extern crate image;
+             extern crate isatty;
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate maplit;
              extern crate serde;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_json;
+             extern crate slog_envlogger;
+             extern crate slog_stdlog;
+             extern crate slog_stream;
+             extern crate time;
+
+// `slog` must precede `log` in declarations here, because we want to simultaneously:
+// * use the standard `log` macros (at least for a while)
+// * be able to initialize the slog logger using slog macros like o!()
+#[macro_use] extern crate slog;
+#[macro_use] extern crate log;
 
 
 mod ext;
+mod logging;
 
 
 use std::env;
@@ -40,8 +54,14 @@ lazy_static! {
 
 
 fn main() {
+    // TODO: logging verbosity command line flag
+    logging::init(1).unwrap();
+
     let addr = format!("{}:{}", HOST, PORT).parse().unwrap();
+    info!("Starting server to listen on {}...", addr);
     let server = Http::new().bind(&addr, || Ok(Rofl)).unwrap();
+
+    debug!("Entering event loop...");
     server.run().unwrap();
 }
 
@@ -57,11 +77,16 @@ impl Service for Rofl {
 
     fn call(&self, req: Request) -> Self::Future {
         match (req.method(), req.path()) {
-            (&Get, "/") => box_ok(Response::new()
-                .with_status(StatusCode::MethodNotAllowed)),
-            (&Post, "/") => self.handle_caption(req),
-            _ => box_ok(Response::new().with_status(StatusCode::NotFound)),
+            (&Post, "/caption") => return self.handle_caption(req),
+            (&Get, "/templates") => return self.handle_list_templates(req),
+            _ => {},
         }
+
+        let error_resp = match (req.method(), req.path()) {
+            (&Get, "/") => Response::new().with_status(StatusCode::MethodNotAllowed),
+            _ => Response::new().with_status(StatusCode::NotFound),
+        };
+        future::ok(error_resp).boxed()
     }
 }
 
@@ -75,19 +100,26 @@ impl Rofl {
                     StatusCode::BadRequest, "cannot decode JSON request"),
             };
             let mut image = vec![];
-            match im.generate(&mut image) {
+            match im.render(&mut image) {
                 Ok(_) => Response::new().with_body(image),
-                Err(e) => error_response(StatusCode::BadRequest, format!("{}", e)),
+                Err(e) => e.into(),
             }
         }).boxed()
     }
-}
 
-fn error_response<T: ToString>(status_code: StatusCode, message: T) -> Response {
-    let message = message.to_string();
-    Response::new()
-        .with_status(status_code)
-        .with_body(json!({"error": message}).to_string())
+    /// Handle the template listing request.
+    fn handle_list_templates(&self, _: Request) -> <Self as Service>::Future {
+        let templates =
+            glob::glob(&format!("{}", TEMPLATE_DIR.join("*.*").display())).unwrap()
+                .filter_map(Result::ok)
+                .fold(vec![], |mut ts, t| {
+                    let name = t.file_stem().unwrap().to_str().unwrap().to_owned();
+                    ts.push(name); ts
+                });
+        let response = Response::new()
+            .with_body(json!(templates).to_string());
+        future::ok(response).boxed()
+    }
 }
 
 
@@ -103,12 +135,19 @@ struct ImageMacro {
 }
 
 impl ImageMacro {
-    pub fn generate<W: Write>(&self, writer: &mut W) -> Result<(), CaptionError> {
+    pub fn render<W: Write>(&self, writer: &mut W) -> Result<(), CaptionError> {
         // TODO: cache templates
-        let template_path =
-            glob::glob(&format!("{}/{}.*", TEMPLATE_DIR.display(), self.template)).unwrap()
-                .next().and_then(|p| p.ok())
-                .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
+        let template_glob = &format!(
+            "{}", TEMPLATE_DIR.join(self.template.clone() + ".*").display());
+        let mut template_iter = match glob::glob(template_glob) {
+            Ok(it) => it,
+            Err(e) => {
+                error!("Failed to glob over template files: {}", e);
+                return Err(CaptionError::Template(self.template.clone()));
+            },
+        };
+        let template_path = template_iter.next().and_then(|p| p.ok())
+            .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
 
         let img = image::open(template_path)
             .map_err(|_| CaptionError::Template(self.template.clone()))?;
@@ -128,6 +167,15 @@ enum CaptionError {
     Template(String),
     Encode(io::Error),
 }
+impl CaptionError {
+    #[inline]
+    pub fn status_code(&self) -> StatusCode {
+        match *self {
+            CaptionError::Template(..) => StatusCode::NotFound,
+            CaptionError::Encode(..) => StatusCode::InternalServerError,
+        }
+    }
+}
 impl Error for CaptionError {
     fn description(&self) -> &str { "captioning error" }
     fn cause(&self) -> Option<&Error> {
@@ -145,10 +193,16 @@ impl fmt::Display for CaptionError {
         }
     }
 }
+impl Into<Response> for CaptionError {
+    fn into(self) -> Response {
+        error_response(self.status_code(), format!("{}", self))
+    }
+}
 
 
-pub fn box_ok<T, E>(t: T) -> BoxFuture<T, E>
-    where T: Send + 'static, E: Send + 'static
-{
-    future::ok(t).boxed()
+fn error_response<T: ToString>(status_code: StatusCode, message: T) -> Response {
+    let message = message.to_string();
+    Response::new()
+        .with_status(status_code)
+        .with_body(json!({"error": message}).to_string())
 }
