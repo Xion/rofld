@@ -17,6 +17,7 @@
              extern crate slog_stdlog;
              extern crate slog_stream;
              extern crate time;
+#[macro_use] extern crate try_opt;
 
 // `slog` must precede `log` in declarations here, because we want to simultaneously:
 // * use the standard `log` macros (at least for a while)
@@ -27,13 +28,12 @@
 
 mod ext;
 mod logging;
+mod templates;
 
 
-use std::env;
 use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
-use std::path::PathBuf;
 
 use futures::Future;
 use futures::future::{self, BoxFuture};
@@ -46,11 +46,6 @@ use ext::hyper::BodyExt;
 
 const HOST: &'static str = "0.0.0.0";
 const PORT: u16 = 1337;
-
-lazy_static! {
-    static ref TEMPLATE_DIR: PathBuf =
-        env::current_dir().unwrap().join("data").join("templates");
-}
 
 
 fn main() {
@@ -76,6 +71,8 @@ impl Service for Rofl {
     type Future = BoxFuture<Response, hyper::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
+        info!("{} {}", format!("{}", req.method()).to_uppercase(), req.path());
+
         match (req.method(), req.path()) {
             (&Post, "/caption") => return self.handle_caption(req),
             (&Get, "/templates") => return self.handle_list_templates(req),
@@ -109,51 +106,45 @@ impl Rofl {
 
     /// Handle the template listing request.
     fn handle_list_templates(&self, _: Request) -> <Self as Service>::Future {
-        let templates =
-            glob::glob(&format!("{}", TEMPLATE_DIR.join("*.*").display())).unwrap()
-                .filter_map(Result::ok)
-                .fold(vec![], |mut ts, t| {
-                    let name = t.file_stem().unwrap().to_str().unwrap().to_owned();
-                    ts.push(name); ts
-                });
+        let template_names = templates::list();
         let response = Response::new()
-            .with_body(json!(templates).to_string());
+            .with_body(json!(template_names).to_string());
         future::ok(response).boxed()
     }
 }
 
 
 /// Describes an image macro, used as an input structure.
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ImageMacro {
     template: String,
-    width: u32,
-    height: u32,
+    width: Option<u32>,
+    height: Option<u32>,
     top_text: Option<String>,
     middle_text: Option<String>,
     bottom_text: Option<String>,
 }
 
 impl ImageMacro {
+    /// Render the image macro as PNG into the specified Writer.
     pub fn render<W: Write>(&self, writer: &mut W) -> Result<(), CaptionError> {
-        // TODO: cache templates
-        let template_glob = &format!(
-            "{}", TEMPLATE_DIR.join(self.template.clone() + ".*").display());
-        let mut template_iter = match glob::glob(template_glob) {
-            Ok(it) => it,
-            Err(e) => {
-                error!("Failed to glob over template files: {}", e);
-                return Err(CaptionError::Template(self.template.clone()));
-            },
-        };
-        let template_path = template_iter.next().and_then(|p| p.ok())
+        debug!("Rendering {:?}", self);
+
+        let img = templates::load(&self.template)
             .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
 
-        let img = image::open(template_path)
-            .map_err(|_| CaptionError::Template(self.template.clone()))?;
+        // Resize the image to fit within the given dimensions.
+        // Note that the resizing preserves original aspect, so the final image
+        // may be smaller than requested.
+        let (orig_width, orig_height) = img.dimensions();
+        let target_width = self.width.unwrap_or(orig_width);
+        let target_height = self.height.unwrap_or(orig_height);
+        debug!("Resizing template `{}` from {}x{} to {}x{}",
+            self.template, orig_width, orig_height, target_width, target_height);
+        let img = img.resize(target_width, target_height, image::FilterType::Lanczos3);
 
         // TODO: render the text
-        let img = img.resize(self.width, self.height, image::FilterType::Lanczos3);
+
         let (width, height) = img.dimensions();
         image::png::PNGEncoder::new(writer)
             .encode(&*img.raw_pixels(), width, height, image::ColorType::RGB(8))
