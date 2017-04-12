@@ -71,7 +71,7 @@ impl Service for Rofl {
     type Future = BoxFuture<Response, hyper::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
-        info!("{} {}", format!("{}", req.method()).to_uppercase(), req.path());
+        self.log(&req);
 
         match (req.method(), req.path()) {
             (&Post, "/caption") => return self.handle_caption(req),
@@ -87,19 +87,29 @@ impl Service for Rofl {
     }
 }
 
+// Request handlers.
 impl Rofl {
     /// Handle the image captioning request.
     fn handle_caption(&self, request: Request) ->  <Self as Service>::Future {
         request.body().into_bytes().map(|bytes| {
+            trace!("Decoding image macro spec from {} bytes of JSON", bytes.len());
             let im: ImageMacro = match serde_json::from_reader(&*bytes) {
                 Ok(im) => im,
-                Err(_) => return error_response(
-                    StatusCode::BadRequest, "cannot decode JSON request"),
+                Err(e) => {
+                    error!("Failed to decode image macro JSON: {}", e);
+                    return error_response(
+                        StatusCode::BadRequest, "cannot decode JSON request");
+                },
             };
+            debug!("Decoded {:?}", im);
+
             let mut image = vec![];
             match im.render(&mut image) {
                 Ok(_) => Response::new().with_body(image),
-                Err(e) => e.into(),
+                Err(e) => {
+                    error!("Failed to render image macro {:?}: {}", im, e);
+                    e.into()
+                },
             }
         }).boxed()
     }
@@ -113,9 +123,21 @@ impl Rofl {
     }
 }
 
+impl Rofl {
+    #[inline]
+    fn log(&self, req: &Request) {
+        info!("{} {} {}{} {}",
+            req.remote_addr().map(|a| format!("{}", a.ip())).unwrap_or_else(|| "-".to_owned()),
+            format!("{}", req.method()).to_uppercase(),
+            req.path(),
+            req.query().map(|q| format!("?{}", q)).unwrap_or_else(String::new),
+            req.version());
+    }
+}
+
 
 /// Describes an image macro, used as an input structure.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct ImageMacro {
     template: String,
     width: Option<u32>,
@@ -124,7 +146,6 @@ struct ImageMacro {
     middle_text: Option<String>,
     bottom_text: Option<String>,
 }
-
 impl ImageMacro {
     /// Render the image macro as PNG into the specified Writer.
     pub fn render<W: Write>(&self, writer: &mut W) -> Result<(), CaptionError> {
@@ -149,6 +170,31 @@ impl ImageMacro {
         image::png::PNGEncoder::new(writer)
             .encode(&*img.raw_pixels(), width, height, image::ColorType::RGB(8))
             .map_err(CaptionError::Encode)
+    }
+}
+impl fmt::Debug for ImageMacro {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let mut ds = fmt.debug_struct("ImageMacro");
+        ds.field("template", &self.template);
+
+        if let Some(ref width) = self.width {
+            ds.field("width", width);
+        }
+        if let Some(ref height) = self.height {
+            ds.field("height", height);
+        }
+
+        if let Some(ref text) = self.top_text {
+            ds.field("top_text", text);
+        }
+        if let Some(ref text) = self.middle_text {
+            ds.field("middle_text", text);
+        }
+        if let Some(ref text) = self.bottom_text {
+            ds.field("bottom_text", text);
+        }
+
+        ds.finish()
     }
 }
 

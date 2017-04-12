@@ -15,7 +15,7 @@ lazy_static! {
 
 /// Load template image.
 pub fn load(template: &str) -> Option<image::DynamicImage> {
-    debug!("Loading image macro template `{}`", template); // TODO: Apache log line
+    debug!("Loading image macro template `{}`", template);
 
     // TODO: cache templates
     let template_glob = &format!(
