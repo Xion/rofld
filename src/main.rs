@@ -10,6 +10,8 @@
              extern crate isatty;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate maplit;
+#[macro_use] extern crate mime;
+             extern crate num;
              extern crate rusttype;
              extern crate serde;
 #[macro_use] extern crate serde_derive;
@@ -31,6 +33,7 @@
 mod ext;
 mod logging;
 mod templates;
+mod text;
 
 
 use std::env;
@@ -43,9 +46,10 @@ use std::path::PathBuf;
 use futures::Future;
 use futures::future::{self, BoxFuture};
 use hyper::{Get, Post, StatusCode};
+use hyper::header::ContentType;
 use hyper::server::{Http, Service, Request, Response};
-use image::{GenericImage, Rgba};
-use rusttype::{FontCollection, Point, Scale};
+use image::GenericImage;
+use rusttype::{FontCollection, vector};
 
 use ext::hyper::BodyExt;
 
@@ -127,9 +131,14 @@ impl Rofl {
             };
             debug!("Decoded {:?}", im);
 
-            let mut image = vec![];
-            match im.render(&mut image) {
-                Ok(_) => Response::new().with_body(image),
+            let mut image_bytes = vec![];
+            match im.render(&mut image_bytes) {
+                Ok(_) => {
+                    debug!("Successfully rendered {:?}", im);
+                    Response::new()
+                        .with_header(ContentType(mime!(Image/Png)))
+                        .with_body(image_bytes)
+                },
                 Err(e) => {
                     error!("Failed to render image macro {:?}: {}", im, e);
                     e.into()
@@ -216,24 +225,18 @@ impl ImageMacro {
             let font_bytes: Vec<_> = font_file.bytes().map(Result::unwrap).collect();
             let font = FontCollection::from_bytes(&*font_bytes).into_font().unwrap();
 
-            // TODO: other texts and better
+            // TODO: other texts and a little better
             if let Some(ref bottom_text) = self.bottom_text {
+                let alignment = (text::VAlign::Bottom, text::HAlign::Center);
                 let bottom_margin_px = 16.0;
-                let scale = Scale::uniform(64.0);
-                let pos = Point{x: 0.0, y: target_height as f32 - bottom_margin_px};
-                for glyph in font.layout(bottom_text, scale, pos) {
-                    if let Some(bbox) = glyph.pixel_bounding_box() {
-                        glyph.draw(|x, y, v| {
-                            let x = (bbox.min.x + x as i32) as u32;
-                            let y = (bbox.min.y + y as i32) as u32;
-                            let v = (v * 255f32) as u8;
-                            img.blend_pixel(x, y, Rgba{data: [255, 255, 255, v]});
-                        });
-                    }
-                }
+                let size = 64.0;
+                debug!("Rendering bottom text: {}", bottom_text);
+                img = text::render_line(
+                    img, bottom_text, alignment, vector(0.0, -bottom_margin_px), &font, size);
             }
         }
 
+        debug!("Encoding final image as PNG...");
         image::png::PNGEncoder::new(writer)
             .encode(&*img.raw_pixels(), width, height, img.color())
             .map_err(CaptionError::Encode)
