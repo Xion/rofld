@@ -27,3 +27,6 @@ slog-stdlog = "*"
 slog-stream = "1.2"
 time = "0.1"
 try_opt = "*"
+
+[profile.release]
+lto = true

@@ -215,6 +215,7 @@ impl ImageMacro {
         if self.has_text() {
             // Rendering text requires alpha blending.
             if img.as_rgba8().is_none() {
+                trace!("Converting image to RGBA...");
                 img = image::DynamicImage::ImageRgba8(img.to_rgba());
             }
 
@@ -225,11 +226,24 @@ impl ImageMacro {
             let font_bytes: Vec<_> = font_file.bytes().map(Result::unwrap).collect();
             let font = FontCollection::from_bytes(&*font_bytes).into_font().unwrap();
 
-            // TODO: other texts and a little better
+            // TODO: moar constants, better encapsulation, all that jazz
+            let size = 64.0;
+            if let Some(ref top_text) = self.top_text {
+                let alignment = (text::VAlign::Top, text::HAlign::Center);
+                let top_margin_px = 16.0;
+                debug!("Rendering top text: {}", top_text);
+                img = text::render_line(
+                    img, top_text, alignment, vector(0.0, top_margin_px), &font, size);
+            }
+            if let Some(ref middle_text) = self.middle_text {
+                let alignment = (text::VAlign::Middle, text::HAlign::Center);
+                debug!("Rendering middle text: {}", middle_text);
+                img = text::render_line(
+                    img, middle_text, alignment, vector(0.0, 0.0), &font, size);
+            }
             if let Some(ref bottom_text) = self.bottom_text {
                 let alignment = (text::VAlign::Bottom, text::HAlign::Center);
-                let bottom_margin_px = 16.0;
-                let size = 64.0;
+                let bottom_margin_px =  16.0;
                 debug!("Rendering bottom text: {}", bottom_text);
                 img = text::render_line(
                     img, bottom_text, alignment, vector(0.0, -bottom_margin_px), &font, size);
@@ -254,6 +268,9 @@ impl fmt::Debug for ImageMacro {
             ds.field("height", height);
         }
 
+        if let Some(ref font) = self.font {
+            ds.field("font", font);
+        }
         if let Some(ref text) = self.top_text {
             ds.field("top_text", text);
         }
