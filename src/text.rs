@@ -1,14 +1,15 @@
 //! Module responsible for rendering text.
 
+use std::fmt;
 use std::ops::{Add, Div, Sub};
 
-use image::{DynamicImage, GenericImage, Rgba};
+use image::{DynamicImage, GenericImage, Rgb, Rgba};
 use num::One;
 use rusttype::{Font, point, Point, Rect, Scale, Vector};
 
 
 /// Vertical alignment of text within a rectangle.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VAlign {
     Top,
     Middle,
@@ -16,7 +17,7 @@ pub enum VAlign {
 }
 
 /// Horizontal alignment of text within a rectangle.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HAlign {
     Left,
     Center,
@@ -25,7 +26,7 @@ pub enum HAlign {
 
 
 /// Alignment of text within a rectangle.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Alignment {
     pub vertical: VAlign,
     pub horizontal: HAlign,
@@ -71,23 +72,89 @@ impl Alignment {
 }
 
 
+/// RGB color of the text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Color(u8, u8, u8);
+
+impl Color {
+    #[inline]
+    pub fn gray(value: u8) -> Self {
+        Color(value, value, value)
+    }
+}
+impl Color {
+    #[inline]
+    pub fn to_rgb(&self) -> Rgb<u8> {
+        let &Color(r, g, b) = self;
+        Rgb{data: [r, g, b]}
+    }
+
+    #[inline]
+    pub fn to_rgba(&self, alpha: u8) -> Rgba<u8> {
+        let &Color(r, g, b) = self;
+        Rgba{data: [r, g, b, alpha]}
+    }
+}
+impl From<Color> for Rgb<u8> {
+    #[inline]
+    fn from(color: Color) -> Rgb<u8> {
+        color.to_rgb()
+    }
+}
+
+/// Style that the text is render with.
+pub struct Style<'f> {
+    font: &'f Font<'f>,
+    size: f32,
+    color: Color,
+}
+impl<'f> Style<'f> {
+    #[inline]
+    pub fn new(font: &'f Font, size: f32, color: Color) -> Self {
+        if size <= 0.0 {
+            panic!("text::Style got negative size ({})", size);
+        }
+        Style{font: font, size: size, color: color}
+    }
+
+    #[inline]
+    pub fn white(font: &'f Font, size: f32) -> Self {
+        Style::new(font, size, Color::gray(0xff))
+    }
+
+    #[inline]
+    pub fn black(font: &'f Font, size: f32) -> Self {
+        Style::new(font, size, Color::gray(0x0))
+    }
+}
+impl<'f> fmt::Debug for Style<'f> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Style")
+            .field("font", &"Font{}")  // we don't have any displayable info here
+            .field("size", &self.size)
+            .field("color", &self.color)
+            .finish()
+    }
+}
+
+
 /// Renders a line of text onto given image.
 pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
                                        s: &str,
                                        align: A, offset: Vector<f32>,
-                                       font: &Font, size: f32) -> DynamicImage {
+                                       style: Style) -> DynamicImage {
     let mut img = img;
     let align: Alignment = align.into();
-    trace!("render_line(..., {:?}, {:?}, offset={:?}, ..., size={})",
-        s, align, offset, size);
+    trace!("render_line(..., {:?}, {:?}, offset={:?}, {:?})",
+        s, align, offset, style);
 
     // Rendering text requires alpha blending.
     if img.as_rgba8().is_none() {
         img = DynamicImage::ImageRgba8(img.to_rgba());
     }
 
-    let scale = Scale::uniform(size);
-    let v_metrics = font.v_metrics(scale);
+    let scale = Scale::uniform(style.size);
+    let v_metrics = style.font.v_metrics(scale);
 
     // Figure out where we're drawing.
     //
@@ -104,7 +171,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     if align.horizontal != HAlign::Left {
         // Compute width as the final X position of the "caret"
         // after laying out the glyphs starting from X=0.
-        let glyphs: Vec<_> = font.layout(s, scale, point(0.0, /* unused */ 0.0)).collect();
+        let glyphs: Vec<_> = style.font.layout(s, scale, point(0.0, /* unused */ 0.0)).collect();
         let width = glyphs.iter()
             .rev()
             .filter_map(|g| g.pixel_bounding_box().map(|bb| {
@@ -120,7 +187,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     match align.vertical {
         VAlign::Top => position.y += v_metrics.ascent,
         VAlign::Middle => {
-            let height = size;
+            let height = style.size;
             position.y += v_metrics.ascent - height / 2.0;
         },
         VAlign::Bottom => {
@@ -129,16 +196,14 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     }
 
     // Now we can draw the text.
-    // TODO: allow to specify text color (probably combine font, size, and color
-    // into Style structure)
-    for glyph in font.layout(s, scale, position) {
+    for glyph in style.font.layout(s, scale, position) {
         if let Some(bbox) = glyph.pixel_bounding_box() {
             glyph.draw(|x, y, v| {
                 let x = (bbox.min.x + x as i32) as u32;
                 let y = (bbox.min.y + y as i32) as u32;
                 let alpha = (v * 255f32) as u8;
                 if x < width && y < height {
-                    img.blend_pixel(x, y, Rgba{data: [255, 255, 255, alpha]});
+                    img.blend_pixel(x, y, style.color.to_rgba(alpha));
                 }
             });
         }
