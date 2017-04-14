@@ -4,6 +4,7 @@
 
              extern crate ansi_term;
              extern crate futures;
+             extern crate futures_cpupool;
              extern crate glob;
              extern crate hyper;
              extern crate image;
@@ -46,6 +47,7 @@ use hyper::header::ContentType;
 use hyper::server::{Http, Service, Request, Response};
 
 use caption::{CAPTIONER, ImageMacro};
+use ext::futures::{ArcFuture, FutureExt};
 use ext::hyper::BodyExt;
 use util::error_response;
 
@@ -74,7 +76,7 @@ impl Service for Rofl {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = ArcFuture<Self::Response, Self::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
         self.log(&req);
@@ -89,7 +91,7 @@ impl Service for Rofl {
             (&Get, "/") => Response::new().with_status(StatusCode::MethodNotAllowed),
             _ => Response::new().with_status(StatusCode::NotFound),
         };
-        future::ok(error_resp).boxed()
+        future::ok(error_resp).arc()
     }
 }
 
@@ -98,7 +100,7 @@ impl Rofl {
     /// Handle the image captioning request.
     fn handle_caption(&self, request: Request) ->  <Self as Service>::Future {
         let (method, url, _, _, body) = request.deconstruct();
-        body.into_bytes().map(move |bytes| {
+        body.into_bytes().and_then(move |bytes| {
             let parsed_im: Result<_, Box<Error>> = match method {
                 Get => {
                     trace!("Decoding image macro spec from {} bytes of query string",
@@ -109,33 +111,30 @@ impl Rofl {
                     trace!("Decoding image macro spec from {} bytes of JSON", bytes.len());
                     serde_json::from_reader(&*bytes).map_err(Into::into)
                 },
-                _ => return Response::new().with_status(StatusCode::MethodNotAllowed),
+                _ => return future::ok(
+                    Response::new().with_status(StatusCode::MethodNotAllowed)).arc(),
             };
 
             let im: ImageMacro = match parsed_im {
                 Ok(im) => im,
                 Err(e) => {
                     error!("Failed to decode image macro: {}", e);
-                    return error_response(
-                        StatusCode::BadRequest, "cannot decode request");
+                    return future::ok(error_response(
+                        StatusCode::BadRequest, "cannot decode request")).arc();
                 },
             };
             debug!("Decoded {:?}", im);
 
-            let mut image_bytes = vec![];
-            match CAPTIONER.render(&im, &mut image_bytes) {
-                Ok(_) => {
-                    debug!("Successfully rendered {:?}", im);
+            CAPTIONER.render(im)
+                .map(|image_bytes| {
                     Response::new()
                         .with_header(ContentType(mime!(Image/Png)))
                         .with_body(image_bytes)
-                },
-                Err(e) => {
-                    error!("Failed to render image macro {:?}: {}", im, e);
-                    e.into()
-                },
-            }
-        }).boxed()
+                })
+                .or_else(|e| future::ok(e.into()))
+                .arc()
+        })
+        .arc()
     }
 
     /// Handle the template listing request.
@@ -143,7 +142,7 @@ impl Rofl {
         let template_names = templates::list();
         let response = Response::new()
             .with_body(json!(template_names).to_string());
-        future::ok(response).boxed()
+        future::ok(response).arc()
     }
 }
 

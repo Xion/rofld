@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use std::io::{self, Read, Write};
 use std::sync::Arc;
 
+use futures::{Future, future};
+use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
 use hyper::server::Response;
 use image::{self, DynamicImage, FilterType, GenericImage};
@@ -77,19 +79,41 @@ impl fmt::Debug for ImageMacro {
 /// Type encapsulating all the image captioning logic.
 pub struct Captioner {
     // TODO: font & template cache
-    _marker: (),
+    pool: CpuPool,
 }
 
 impl Captioner {
     #[inline]
-    fn new() -> Self {
-        Captioner{_marker: ()}
+    fn new( ) -> Self {
+        // TODO: configure the number of threads from the command line
+        let pool = futures_cpupool::Builder::new()
+            .name_prefix("caption-")
+            .create();
+        Captioner{pool: pool}
     }
 }
 
 impl Captioner {
     /// Render an image macro as PNG into the specified Writer.
-    pub fn render<W: Write>(&self, im: &ImageMacro, writer: &mut W) -> Result<(), CaptionError> {
+    /// The rendering is done in a separate thread.
+    pub fn render(&self, im: ImageMacro) -> Box<Future<Item=Vec<u8>, Error=CaptionError>> {
+        self.pool.clone().spawn_fn(move || {
+            let mut image_bytes = vec![];
+            match Self::do_render(&im, &mut image_bytes) {
+                Ok(_) => {
+                    debug!("Successfully rendered {:?}", im);
+                    future::ok(image_bytes)
+                },
+                Err(e) => {
+                    error!("Failed to render image macro {:?}: {}", im, e);
+                    future::err(e)
+                },
+            }
+        })
+        .boxed()
+    }
+
+    fn do_render<W: Write>(im: &ImageMacro, writer: &mut W) -> Result<(), CaptionError> {
         debug!("Rendering {:?}", im);
 
         let mut img = templates::load(&im.template)
@@ -171,15 +195,18 @@ lazy_static! {
 /// Error that may occur during the captioning.
 #[derive(Debug)]
 pub enum CaptionError {
+    Unknown,
     Template(String),
     Font(io::Error),
     Encode(io::Error),
 }
+unsafe impl Send for CaptionError {}
 
 impl CaptionError {
     #[inline]
     pub fn status_code(&self) -> StatusCode {
         match *self {
+            CaptionError::Unknown => StatusCode::InternalServerError,
             CaptionError::Template(..) => StatusCode::NotFound,
             CaptionError::Font(..) => StatusCode::NotFound,
             CaptionError::Encode(..) => StatusCode::InternalServerError,
@@ -201,6 +228,7 @@ impl Error for CaptionError {
 impl fmt::Display for CaptionError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            CaptionError::Unknown => write!(fmt, "unknown error"),
             CaptionError::Template(ref t) => write!(fmt, "cannot find template `{}`", t),
             CaptionError::Font(ref t) => write!(fmt, "cannot find font `{}`", t),
             CaptionError::Encode(ref e) => write!(fmt, "failed to encode the  final image: {}", e),
