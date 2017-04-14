@@ -44,7 +44,7 @@ use futures::Future;
 use futures::future::{self, BoxFuture};
 use hyper::{Get, Post, StatusCode};
 use hyper::server::{Http, Service, Request, Response};
-use image::{GenericImage, Rgb};
+use image::{GenericImage, Rgba};
 use rusttype::{FontCollection, Point, Scale};
 
 use ext::hyper::BodyExt;
@@ -173,51 +173,69 @@ struct ImageMacro {
     bottom_text: Option<String>,
 }
 impl ImageMacro {
+    #[inline]
+    pub fn has_text(&self) -> bool {
+        self.top_text.is_some() || self.middle_text.is_some() || self.bottom_text.is_some()
+    }
+
     /// Render the image macro as PNG into the specified Writer.
     pub fn render<W: Write>(&self, writer: &mut W) -> Result<(), CaptionError> {
         debug!("Rendering {:?}", self);
 
-        let img = templates::load(&self.template)
+        let mut img = templates::load(&self.template)
             .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
 
         // Resize the image to fit within the given dimensions.
         // Note that the resizing preserves original aspect, so the final image
         // may be smaller than requested.
         let (orig_width, orig_height) = img.dimensions();
+        trace!("Original size of template `{}`: {}x{}",
+            self.template, orig_width, orig_height);
         let target_width = self.width.unwrap_or(orig_width);
         let target_height = self.height.unwrap_or(orig_height);
-        debug!("Resizing template `{}` from {}x{} to {}x{}",
-            self.template, orig_width, orig_height, target_width, target_height);
-        let mut img = img.resize(target_width, target_height, image::FilterType::Lanczos3);
+        if target_width != orig_width || target_height != orig_height {
+            debug!("Resizing template `{}` from {}x{} to {}x{}",
+                self.template, orig_width, orig_height, target_width, target_height);
+            img = img.resize(target_width, target_height, image::FilterType::Lanczos3);
+        } else {
+            debug!("Using original template size of {}x{}", orig_width, orig_height);
+        }
+        let (width, height) = img.dimensions();
+        trace!("Final image size: {}x{}", width, height);
 
-        // TODO: other texts and better
-        if let Some(ref bottom_text) = self.bottom_text {
+        if self.has_text() {
+            // Rendering text requires alpha blending.
+            if img.as_rgba8().is_none() {
+                img = image::DynamicImage::ImageRgba8(img.to_rgba());
+            }
+
+            // Load the font specified.
             let font_name = self.font.as_ref().map(|s| s.as_str()).unwrap_or("Impact");
             let font_file = fs::File::open(FONT_DIR.join(format!("{}.ttf", font_name)))
                 .map_err(CaptionError::Font)?;
             let font_bytes: Vec<_> = font_file.bytes().map(Result::unwrap).collect();
             let font = FontCollection::from_bytes(&*font_bytes).into_font().unwrap();
-            let size = 64.0;
-            let pos = Point{x: 0.0, y: target_height as f32 - size};
-            font.layout(bottom_text, Scale::uniform(size), pos)
-                .scan(0.0, |caret, g| {
-                    g.draw(|x, y, v| {
-                        let x = (pos.x + *caret) as u32 + x;
-                        let y = pos.y as u32 + y;
-                        let v = (v * 255f32) as u8;
-                        img.as_mut_rgb8().unwrap().put_pixel(x, y, Rgb{data: [v, v, v]});
-                    });
-                    // TODO: probably need to use advance_width + font.pair_kerning instead
-                    let rect = g.pixel_bounding_box().unwrap();
-                    *caret += rect.width() as f32;
-                    Some(())
-                })
-                .count();  // just to consume the iterator
+
+            // TODO: other texts and better
+            if let Some(ref bottom_text) = self.bottom_text {
+                let bottom_margin_px = 16.0;
+                let scale = Scale::uniform(64.0);
+                let pos = Point{x: 0.0, y: target_height as f32 - bottom_margin_px};
+                for glyph in font.layout(bottom_text, scale, pos) {
+                    if let Some(bbox) = glyph.pixel_bounding_box() {
+                        glyph.draw(|x, y, v| {
+                            let x = (bbox.min.x + x as i32) as u32;
+                            let y = (bbox.min.y + y as i32) as u32;
+                            let v = (v * 255f32) as u8;
+                            img.blend_pixel(x, y, Rgba{data: [255, 255, 255, v]});
+                        });
+                    }
+                }
+            }
         }
 
-        let (width, height) = img.dimensions();
         image::png::PNGEncoder::new(writer)
-            .encode(&*img.raw_pixels(), width, height, image::ColorType::RGB(8))
+            .encode(&*img.raw_pixels(), width, height, img.color())
             .map_err(CaptionError::Encode)
     }
 }
