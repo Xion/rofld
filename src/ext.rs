@@ -1,7 +1,7 @@
 //! Extension module, gluing together & enhancing the third-party libraries.
 
 pub mod hyper {
-    use futures::{future, Future, Stream};
+    use futures::{future, Stream};
     use hyper::{Body, Error};
 
     use super::futures::{ArcFuture, FutureExt};
@@ -24,9 +24,9 @@ pub mod hyper {
 
 
 pub mod futures {
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, TryLockError};
 
-    use futures::{Future, Poll};
+    use futures::{Async, Future, Poll};
 
 
     /// Trait with additional methods for Futures.
@@ -49,7 +49,13 @@ pub mod futures {
         type Error = E;
 
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            self.0.try_lock().expect("ArcFuture mutex poisoned").poll()
+            match self.0.try_lock() {
+                Ok(mut g) => g.poll(),
+                Err(TryLockError::WouldBlock) => Ok(Async::NotReady),
+                Err(TryLockError::Poisoned(e)) => {
+                    panic!("ArcFuture mutex poisoned: {}", e);
+                },
+            }
         }
     }
 }
