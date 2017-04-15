@@ -46,7 +46,7 @@ use hyper::{Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Http, Service, Request, Response};
 
-use caption::{CAPTIONER, ImageMacro, templates};
+use caption::{CAPTIONER, fonts, ImageMacro, templates};
 use ext::futures::{ArcFuture, FutureExt};
 use ext::hyper::BodyExt;
 use util::error_response;
@@ -84,11 +84,12 @@ impl Service for Rofl {
         match (req.method(), req.path()) {
             (_, "/caption") => return self.handle_caption(req),
             (&Get, "/templates") => return self.handle_list_templates(req),
+            (&Get, "/fonts") => return self.handle_list_fonts(req),
             _ => {},
         }
 
+        debug!("Path {} doesn't match any endpoint", req.path());
         let error_resp = match (req.method(), req.path()) {
-            (&Get, "/") => Response::new().with_status(StatusCode::MethodNotAllowed),
             _ => Response::new().with_status(StatusCode::NotFound),
         };
         future::ok(error_resp).arc()
@@ -142,6 +143,14 @@ impl Rofl {
         let template_names = templates::list();
         let response = Response::new()
             .with_body(json!(template_names).to_string());
+        future::ok(response).arc()
+    }
+
+    /// Handle the font listing request.
+    fn handle_list_fonts(&self, _: Request) -> <Self as Service>::Future {
+        let font_names = fonts::list();
+        let response = Response::new()
+            .with_body(json!(font_names).to_string());
         future::ok(response).arc()
     }
 }

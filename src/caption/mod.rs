@@ -7,7 +7,8 @@ pub mod templates;
 
 use std::error::Error;
 use std::fmt;
-use std::io::{self, Write};
+use std::io;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use futures::{Future, future};
@@ -39,6 +40,11 @@ impl ImageMacro {
     #[inline]
     pub fn has_text(&self) -> bool {
         self.top_text.is_some() || self.middle_text.is_some() || self.bottom_text.is_some()
+    }
+
+    #[inline]
+    pub fn font(&self) -> &str {
+        self.font.as_ref().map(|s| s.as_str()).unwrap_or(fonts::DEFAULT)
     }
 }
 
@@ -72,7 +78,7 @@ impl fmt::Debug for ImageMacro {
 }
 
 
-/// Type encapsulating all the image captioning logic.
+/// Renders image macros into captioned images in separate threads.
 pub struct Captioner {
     pool: CpuPool,
     cache: Arc<Cache>,
@@ -92,22 +98,24 @@ impl Captioner {
 
 // Rendering code.
 impl Captioner {
-    /// Render an image macro as PNG into the specified Writer.
+    /// Render an image macro as PNG.
     /// The rendering is done in a separate thread.
     pub fn render(&self, im: ImageMacro) -> Box<Future<Item=Vec<u8>, Error=CaptionError>> {
         self.pool.clone().spawn_fn({
-            // TODO: encapsulate the state of the rendering process in a thread-local
-            // structure (containing e.g. the Cache reference)
-            let cache = self.cache.clone();
+            let im_repr = format!("{:?}", im);
+            let task = CaptionTask{
+                image_macro: im,
+                cache: self.cache.clone(),
+            };
             move || {
-                let mut image_bytes = vec![];
-                match Self::do_render(cache, &im, &mut image_bytes) {
-                    Ok(_) => {
-                        debug!("Successfully rendered {:?}", im);
-                        future::ok(image_bytes)
+                match task.perform() {
+                    Ok(ib) => {
+                        debug!("Successfully rendered {}, final image size: {} bytes",
+                            im_repr, ib.len());
+                        future::ok(ib)
                     },
                     Err(e) => {
-                        error!("Failed to render image macro {:?}: {}", im, e);
+                        error!("Failed to render image macro {}: {}", im_repr, e);
                         future::err(e)
                     },
                 }
@@ -115,25 +123,50 @@ impl Captioner {
         })
         .boxed()
     }
+}
 
-    fn do_render<W: Write>(cache: Arc<Cache>, im: &ImageMacro, writer: &mut W) -> Result<(), CaptionError> {
-        debug!("Rendering {:?}", im);
+lazy_static! {
+    /// The singleton instance of Captioner.
+    /// This is done to share the caches it holds.
+    pub static ref CAPTIONER: Arc<Captioner> = Arc::new(Captioner::new());
+}
 
-        let template = cache.get_template(&im.template)
-            .ok_or_else(|| CaptionError::Template(im.template.clone()))?;
+/// Represents a single captioning task and contains all the relevant logic.
+///
+/// This is a separate struct so that its methods can be conveniently executed
+/// in a separate thread.
+struct CaptionTask {
+    image_macro: ImageMacro,
+    cache: Arc<Cache>,
+}
+
+impl Deref for CaptionTask {
+    type Target = ImageMacro;
+    fn deref(&self) -> &Self::Target {
+        &self.image_macro  // makes the rendering code a little terser
+    }
+}
+
+impl CaptionTask {
+    /// Perform the captioning task.
+    fn perform(self) -> Result<Vec<u8>, CaptionError> {
+        debug!("Rendering {:?}", self.image_macro);
+
+        let template = self.cache.get_template(&self.template)
+            .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
 
         // Resize the image to fit within the given dimensions.
         // Note that the resizing preserves original aspect, so the final image
         // may be smaller than requested.
         let (orig_width, orig_height) = template.dimensions();
         trace!("Original size of the template `{}`: {}x{}",
-            im.template, orig_width, orig_height);
-        let target_width = im.width.unwrap_or(orig_width);
-        let target_height = im.height.unwrap_or(orig_height);
+            self.template, orig_width, orig_height);
+        let target_width = self.width.unwrap_or(orig_width);
+        let target_height = self.height.unwrap_or(orig_height);
         let mut img;
         if target_width != orig_width || target_height != orig_height {
             debug!("Resizing template `{}` from {}x{} to {}x{}",
-                im.template, orig_width, orig_height, target_width, target_height);
+                self.template, orig_width, orig_height, target_width, target_height);
             img = template.resize(target_width, target_height, FilterType::Lanczos3);
         } else {
             debug!("Using original template size of {}x{}", orig_width, orig_height);
@@ -142,17 +175,15 @@ impl Captioner {
         let (width, height) = img.dimensions();
         trace!("Final image size: {}x{}", width, height);
 
-        if im.has_text() {
-            img = Self::draw_text(cache, im, img)?;
+        if self.has_text() {
+            img = self.draw_text(img)?;
         }
-
-        debug!("Encoding final image as PNG...");
-        image::png::PNGEncoder::new(writer)
-            .encode(&*img.raw_pixels(), width, height, img.color())
-            .map_err(CaptionError::Encode)
+        self.encode_image(img)
     }
 
-    fn draw_text(cache: Arc<Cache>, im: &ImageMacro, img: DynamicImage) -> Result<DynamicImage, CaptionError> {
+    /// Draw the text from ImageMacro on given image.
+    /// Returns a new image.
+    fn draw_text(&self, img: DynamicImage) -> Result<DynamicImage, CaptionError> {
         // Rendering text requires alpha blending.
         let mut img = img;
         if img.as_rgba8().is_none() {
@@ -160,13 +191,12 @@ impl Captioner {
             img = DynamicImage::ImageRgba8(img.to_rgba());
         }
 
-        let font_name = im.font.as_ref().map(|s| s.as_str()).unwrap_or(fonts::DEFAULT);
-        let font = cache.get_font(font_name)
-            .ok_or_else(|| CaptionError::Font(font_name.to_owned()))?;
+        let font = self.cache.get_font(self.font())
+            .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
 
         // TODO: moar constants, better encapsulation, all that jazz
         let size = 64.0;
-        if let Some(ref top_text) = im.top_text {
+        if let Some(ref top_text) = self.top_text {
             let alignment = (VAlign::Top, HAlign::Center);
             let top_margin_px = 16.0;
             debug!("Rendering top text: {}", top_text);
@@ -174,14 +204,14 @@ impl Captioner {
                 img, top_text, alignment, vector(0.0, top_margin_px),
                 Style::white(&font, size));
         }
-        if let Some(ref middle_text) = im.middle_text {
+        if let Some(ref middle_text) = self.middle_text {
             let alignment = (VAlign::Middle, HAlign::Center);
             debug!("Rendering middle text: {}", middle_text);
             img = text::render_line(
                 img, middle_text, alignment, vector(0.0, 0.0),
                 Style::white(&font, size));
         }
-        if let Some(ref bottom_text) = im.bottom_text {
+        if let Some(ref bottom_text) = self.bottom_text {
             let alignment = (VAlign::Bottom, HAlign::Center);
             let bottom_margin_px =  16.0;
             debug!("Rendering bottom text: {}", bottom_text);
@@ -192,12 +222,19 @@ impl Captioner {
 
         Ok(img)
     }
-}
 
-lazy_static! {
-    /// The singleton instance of Captioner.
-    /// This is done to share the caches it holds.
-    pub static ref CAPTIONER: Arc<Captioner> = Arc::new(Captioner::new());
+    /// Encode final result as PNG bytes.
+    fn encode_image(&self, img: DynamicImage) -> Result<Vec<u8>, CaptionError> {
+        debug!("Encoding final image as PNG...");
+
+        let (width, height) = img.dimensions();
+        let mut image_bytes = vec![];
+        image::png::PNGEncoder::new(&mut image_bytes)
+            .encode(&*img.raw_pixels(), width, height, img.color())
+            .map_err(CaptionError::Encode)?;
+
+        Ok(image_bytes)
+    }
 }
 
 
