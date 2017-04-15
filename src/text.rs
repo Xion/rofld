@@ -138,6 +138,9 @@ impl<'f> fmt::Debug for Style<'f> {
 }
 
 
+// TODO: render multiline text
+
+
 /// Renders a line of text onto given image.
 pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
                                        s: &str,

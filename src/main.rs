@@ -10,6 +10,7 @@
              extern crate image;
              extern crate isatty;
 #[macro_use] extern crate lazy_static;
+             extern crate lru_cache;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate mime;
              extern crate num;
@@ -34,7 +35,6 @@
 mod ext;
 mod caption;
 mod logging;
-mod templates;
 mod text;
 mod util;
 
@@ -46,7 +46,7 @@ use hyper::{Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Http, Service, Request, Response};
 
-use caption::{CAPTIONER, ImageMacro};
+use caption::{CAPTIONER, ImageMacro, templates};
 use ext::futures::{ArcFuture, FutureExt};
 use ext::hyper::BodyExt;
 use util::error_response;
