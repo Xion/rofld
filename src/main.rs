@@ -79,6 +79,9 @@ impl Service for Rofl {
     type Future = ArcFuture<Self::Response, Self::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
+        // TODO: log the request after the response is served, in Common Log Format;
+        // need to retain the request info first, and extract a handle() method
+        // returning Response
         self.log(&req);
 
         match (req.method(), req.path()) {

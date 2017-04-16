@@ -155,7 +155,15 @@ impl CaptionTask {
         let template = self.cache.get_template(&self.template)
             .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
 
-        // Resize the image to fit within the given dimensions.
+        let mut img = self.resize_template(template);
+        if self.has_text() {
+            img = self.draw_text(img)?;
+        }
+        self.encode_image(img)
+    }
+
+    /// Resize the template image to fit the desired dimensions.
+    fn resize_template(&self, template: Arc<DynamicImage>) -> DynamicImage {
         // Note that the resizing preserves original aspect, so the final image
         // may be smaller than requested.
         let (orig_width, orig_height) = template.dimensions();
@@ -163,7 +171,8 @@ impl CaptionTask {
             self.template, orig_width, orig_height);
         let target_width = self.width.unwrap_or(orig_width);
         let target_height = self.height.unwrap_or(orig_height);
-        let mut img;
+
+        let img;
         if target_width != orig_width || target_height != orig_height {
             debug!("Resizing template `{}` from {}x{} to {}x{}",
                 self.template, orig_width, orig_height, target_width, target_height);
@@ -172,13 +181,10 @@ impl CaptionTask {
             debug!("Using original template size of {}x{}", orig_width, orig_height);
             img = (*template).clone();  // clone the actual image
         }
+
         let (width, height) = img.dimensions();
         trace!("Final image size: {}x{}", width, height);
-
-        if self.has_text() {
-            img = self.draw_text(img)?;
-        }
-        self.encode_image(img)
+        img
     }
 
     /// Draw the text from ImageMacro on given image.
