@@ -24,6 +24,7 @@
              extern crate slog_envlogger;
              extern crate slog_stdlog;
              extern crate slog_stream;
+             extern crate tokio_signal;
              extern crate time;
 #[macro_use] extern crate try_opt;
 
@@ -46,7 +47,7 @@ use std::env;
 use std::io::{self, Write};
 use std::process::exit;
 
-use futures::{future, Future};
+use futures::{future, Future, Stream};
 use hyper::{Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Http, Service, Request, Response};
@@ -94,7 +95,15 @@ fn start_server(opts: args::Options) {
     let server = Http::new().bind(&opts.address, || Ok(Rofl)).unwrap();
 
     debug!("Entering event loop...");
-    server.run().unwrap();
+    let ctrl_c = tokio_signal::ctrl_c(&server.handle())
+        .flatten_stream().into_future()  // Future<Stream> => Future<(first, rest)>
+        .map(|x| { info!("Received shutdown signal..."); x })
+        .then(|_| Ok(()));
+    server.run_until(ctrl_c).unwrap_or_else(|e| {
+        error!("Failed to start the server's event loop: {}", e);
+        exit(74);  // EX_IOERR
+    });
+    info!("Server stopped.");
 }
 
 
