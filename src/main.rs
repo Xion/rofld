@@ -3,6 +3,8 @@
 //!
 
              extern crate ansi_term;
+             extern crate clap;
+             extern crate conv;
              extern crate futures;
              extern crate futures_cpupool;
              extern crate glob;
@@ -32,6 +34,7 @@
 #[macro_use] extern crate log;
 
 
+mod args;
 mod ext;
 mod caption;
 mod logging;
@@ -39,6 +42,9 @@ mod util;
 
 
 use std::error::Error;
+use std::env;
+use std::io::{self, Write};
+use std::process::exit;
 
 use futures::{future, Future};
 use hyper::{Get, Post, StatusCode};
@@ -51,16 +57,44 @@ use ext::hyper::BodyExt;
 use util::error_response;
 
 
+// TODO: command line flags for this
 const HOST: &'static str = "0.0.0.0";
 const PORT: u16 = 1337;
 
 
-fn main() {
-    // TODO: logging verbosity command line flag
-    logging::init(1).unwrap();
+lazy_static! {
+    /// Application / package name, as filled out by Cargo.
+    static ref NAME: &'static str = option_env!("CARGO_PKG_NAME").unwrap_or("rofld");
 
+    /// Application version, as filled out by Cargo.
+    static ref VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+
+    // TODO: Application revision, such as Git SHA.
+    // (requires a build script)
+    // static ref REVISION: Option<&'static str> = option_env!("X_CARGO_REVISION");
+}
+
+
+fn main() {
+    let opts = args::parse().unwrap_or_else(|e| {
+        let usage = e.message;  // clap provides it on parse error
+        writeln!(&mut io::stderr(), "{}", usage).unwrap();
+        exit(64);  // EX_USAGE
+    });
+
+    logging::init(opts.verbosity).unwrap();
+    info!("{} {}", *NAME,
+        VERSION.map(|v| format!("v{}", v)).unwrap_or_else(|| "<UNKNOWN VERSION>".into()));
+    for (i, arg) in env::args().enumerate() {
+        trace!("argv[{}] = {:?}", i, arg);
+    }
+
+    start_server(opts);
+}
+
+fn start_server(_: args::Options) {
     let addr = format!("{}:{}", HOST, PORT).parse().unwrap();
-    info!("Starting server to listen on {}...", addr);
+    info!("Starting the server to listen on {}...", addr);
     let server = Http::new().bind(&addr, || Ok(Rofl)).unwrap();
 
     debug!("Entering event loop...");
