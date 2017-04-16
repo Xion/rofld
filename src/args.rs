@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
-use std::net::SocketAddr;
+use std::net::{AddrParseError, SocketAddr};
 
 use clap::{self, AppSettings, Arg, ArgMatches, ArgSettings};
 use conv::TryFrom;
@@ -13,14 +13,14 @@ use super::{NAME, VERSION};
 
 /// Parse command line arguments and return Options' object.
 #[inline]
-pub fn parse() -> clap::Result<Options> {
+pub fn parse() -> Result<Options, ArgsError> {
     parse_from_argv(env::args_os())
 }
 
 /// Parse application options from given array of arguments
 /// (*all* arguments, including binary name).
 #[inline]
-pub fn parse_from_argv<I, T>(argv: I) -> clap::Result<Options>
+pub fn parse_from_argv<I, T>(argv: I) -> Result<Options, ArgsError>
     where I: IntoIterator<Item=T>, T: Clone + Into<OsString>
 {
     let parser = create_parser();
@@ -50,25 +50,49 @@ impl Options {
 }
 
 impl<'a> TryFrom<ArgMatches<'a>> for Options {
-    type Err = clap::Error;
+    type Err = ArgsError;
 
     fn try_from(matches: ArgMatches<'a>) -> Result<Self, Self::Err> {
         let verbose_count = matches.occurrences_of(OPT_VERBOSE) as isize;
         let quiet_count = matches.occurrences_of(OPT_QUIET) as isize;
         let verbosity = verbose_count - quiet_count;
 
-        // Address can be just a port (e.g. ":4242"),
-        // in which case we prepend it with the default host.
-        let mut address: Cow<_> = matches.value_of(ARG_ADDR).unwrap().into();
-        if address.starts_with(":") {
-            address = format!("{}{}", DEFAULT_HOST, address).into();
-        }
-        let sock_addr: SocketAddr = address.parse().unwrap();  // TODO: error handling
+        let address: SocketAddr = {
+            let mut addr: Cow<_> = matches.value_of(ARG_ADDR).unwrap().into();
+
+            // Address can be just a port (e.g. ":4242"),
+            // in which case we prepend it with the default host.
+            let is_just_port = addr.starts_with(":")
+                && !addr.starts_with("::");  // eliminates IPv6 addresses like "::1"
+            if is_just_port {
+                addr = format!("{}{}", DEFAULT_HOST, addr).into();
+            }
+
+            // XXX: this doesn't play well with IPv6; we need to have separate
+            // host & port args
+            if !addr.contains(":") || addr.contains("::") {
+                addr = format!("{}:{}", addr, DEFAULT_PORT).into();
+            }
+
+            try!(addr.parse())
+        };
 
         Ok(Options{
             verbosity: verbosity,
-            address: sock_addr,
+            address: address,
         })
+    }
+}
+
+custom_derive! {
+    /// Error that can occur while parsing of command line arguments.
+    #[derive(Debug,
+             Error("command line arguments error"), ErrorDisplay, ErrorFrom)]
+    pub enum ArgsError {
+        /// General when parsing the arguments.
+        Parse(clap::Error),
+        /// Error while parsing the server address.
+        Address(AddrParseError),
     }
 }
 
@@ -135,4 +159,46 @@ fn create_parser<'p>() -> Parser<'p> {
 
         .help_short("H")
         .version_short("V")
+}
+
+
+#[cfg(test)]
+mod tests {
+    use spectral::prelude::*;
+    use ::NAME;
+    use super::parse_from_argv;
+
+    #[test]
+    fn no_args() {
+        assert_that!(parse_from_argv(Vec::<&str>::new())).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME])).is_ok();
+    }
+
+    #[test]
+    fn verbosity_args() {
+        assert_that!(parse_from_argv(vec![*NAME, "-v"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "-v", "-v"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "-vv"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "-q"])).is_ok();
+        // -v & -q are contradictory
+        assert_that!(parse_from_argv(vec![*NAME, "-q", "-v"])).is_err();
+    }
+
+    #[test]
+    fn address_arg() {
+        assert_that!(parse_from_argv(vec![*NAME, ":"])).is_err();
+        // IP addresses alone are fine.
+        assert_that!(parse_from_argv(vec![*NAME, "127.0.0.1"])).is_ok();
+        // FIXME: assert_that!(parse_from_argv(vec![*NAME, "0::1"])).is_ok();
+        // Port alone is fine, with colon.
+        assert_that!(parse_from_argv(vec![*NAME, ":1234"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, ":31337"])).is_ok();
+        // Both are fine.
+        assert_that!(parse_from_argv(vec![*NAME, "127.0.0.1:2345"])).is_ok();
+        // FIXME: assert_that!(parse_from_argv(vec![*NAME, "0::1:2345"])).is_ok();
+        // FIXME: assert_that!(parse_from_argv(vec![*NAME, "::1:2345"])).is_ok();
+        // Invalid port.
+        assert_that!(parse_from_argv(vec![*NAME, "4242"])).is_err();  // need colon
+        assert_that!(parse_from_argv(vec![*NAME, ":123456789"])).is_err();  // >65536
+    }
 }

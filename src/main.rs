@@ -5,6 +5,8 @@
              extern crate ansi_term;
 #[macro_use] extern crate clap;
              extern crate conv;
+#[macro_use] extern crate custom_derive;
+#[macro_use] extern crate error_derive;
              extern crate futures;
              extern crate futures_cpupool;
              extern crate glob;
@@ -35,6 +37,10 @@
 #[macro_use] extern crate log;
 
 
+#[cfg(test)]
+#[macro_use] extern crate spectral;
+
+
 mod args;
 mod ext;
 mod caption;
@@ -52,6 +58,7 @@ use hyper::{Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Http, Service, Request, Response};
 
+use args::{ArgsError, Options};
 use caption::{CAPTIONER, fonts, ImageMacro, templates};
 use ext::futures::{ArcFuture, FutureExt};
 use ext::hyper::BodyExt;
@@ -74,8 +81,7 @@ lazy_static! {
 
 fn main() {
     let opts = args::parse().unwrap_or_else(|e| {
-        let usage = e.message;  // clap provides it on parse error
-        writeln!(&mut io::stderr(), "{}", usage).unwrap();
+        print_args_error(e).unwrap();
         exit(64);  // EX_USAGE
     });
 
@@ -90,7 +96,26 @@ fn main() {
     start_server(opts);
 }
 
-fn start_server(opts: args::Options) {
+/// Print an error that may occur while parsing arguments.
+fn print_args_error(e: ArgsError) -> io::Result<()> {
+    match e {
+        ArgsError::Parse(ref e) =>
+            // In case of generic parse error,
+            // message provided by the clap library will be the usage string.
+            writeln!(&mut io::stderr(), "{}", e.message),
+        e => {
+            let mut msg = "Failed to parse arguments".to_owned();
+            if let Some(cause) = e.cause() {
+                msg += &format!(": {}", cause);
+            }
+            writeln!(&mut io::stderr(), "{}", msg)
+        },
+    }
+}
+
+/// Start the server with given options.
+/// This function only terminated when the server finishes.
+fn start_server(opts: Options) {
     info!("Starting the server to listen on {}...", opts.address);
     let server = Http::new().bind(&opts.address, || Ok(Rofl)).unwrap();
 

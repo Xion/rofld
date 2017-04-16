@@ -15,6 +15,8 @@ build = "build.rs"
 ansi_term = "0.9"
 clap = { version = "2.19", features = ["suggestions"] }
 conv = "0.3"
+custom_derive = "*"
+error_derive = "*"
 futures = "0.1"
 futures-cpupool = "0.1"
 glob = "0.2"
@@ -40,6 +42,9 @@ slog-stream = "1.2"
 tokio-signal = "0.1"
 time = "0.1"
 try_opt = "*"
+
+[dev-dependencies]
+spectral = "0.6.0"
 
 [profile.release]
 lto = true
