@@ -3,6 +3,7 @@
 mod cache;
 pub mod fonts;
 pub mod templates;
+mod text;
 
 
 use std::error::Error;
@@ -18,9 +19,9 @@ use hyper::server::Response;
 use image::{self, DynamicImage, FilterType, GenericImage};
 use rusttype::vector;
 
-use text::{self, HAlign, VAlign, Style};
 use util::error_response;
 use self::cache::Cache;
+use self::text::{HAlign, VAlign, Style};
 
 
 /// Describes an image macro, used as an input structure.

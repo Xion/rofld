@@ -35,7 +35,6 @@
 mod ext;
 mod caption;
 mod logging;
-mod text;
 mod util;
 
 
