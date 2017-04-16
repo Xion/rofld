@@ -1,7 +1,9 @@
 //! Module for handling command line arguments.
 
+use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
+use std::net::SocketAddr;
 
 use clap::{self, AppSettings, Arg, ArgMatches, ArgSettings};
 use conv::TryFrom;
@@ -35,8 +37,8 @@ pub struct Options {
     /// Corresponds to the number of times the -v flag has been passed.
     /// If -q has been used instead, this will be negative.
     pub verbosity: isize,
-
-    // TODO: more options
+    /// Address where the server should listen on.
+    pub address: SocketAddr,
 }
 
 #[allow(dead_code)]
@@ -55,8 +57,17 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let quiet_count = matches.occurrences_of(OPT_QUIET) as isize;
         let verbosity = verbose_count - quiet_count;
 
+        // Address can be just a port (e.g. ":4242"),
+        // in which case we prepend it with the default host.
+        let mut address: Cow<_> = matches.value_of(ARG_ADDR).unwrap().into();
+        if address.starts_with(":") {
+            address = format!("{}{}", DEFAULT_HOST, address).into();
+        }
+        let sock_addr: SocketAddr = address.parse().unwrap();  // TODO: error handling
+
         Ok(Options{
             verbosity: verbosity,
+            address: sock_addr,
         })
     }
 }
@@ -73,8 +84,15 @@ lazy_static! {
     static ref ABOUT: &'static str = option_env!("CARGO_PKG_DESCRIPTION").unwrap_or("");
 }
 
+const ARG_ADDR: &'static str = "address";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
+
+const DEFAULT_HOST: &'static str = "0.0.0.0";
+const DEFAULT_PORT: u16 = 1337;
+lazy_static! {
+    static ref DEFAULT_ADDR: String = format!("{}:{}", DEFAULT_HOST, DEFAULT_PORT);
+}
 
 
 /// Create the parser for application's command line.
@@ -85,10 +103,23 @@ fn create_parser<'p>() -> Parser<'p> {
     }
     parser
         .about(*ABOUT)
+        .author(crate_authors!(", "))
 
         .setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::DeriveDisplayOrder)
         .setting(AppSettings::ColorNever)
+
+        .arg(Arg::with_name(ARG_ADDR)
+            .value_name("ADDRESS:PORT")
+            .required(false)
+            .default_value(&*DEFAULT_ADDR)
+            .help("Binds the server to given address")
+            .long_help(concat!(
+                "The address and/or port for the server to listen on.\n\n",
+                "This argument can be an IP address of a network interface, ",
+                "optionally followed by colon and a port number. ",
+                "Alternatively, a colon and port alone is also allowed, ",
+                "in which case the server will listen on all network interfaces.")))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)

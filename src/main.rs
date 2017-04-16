@@ -3,7 +3,7 @@
 //!
 
              extern crate ansi_term;
-             extern crate clap;
+#[macro_use] extern crate clap;
              extern crate conv;
              extern crate futures;
              extern crate futures_cpupool;
@@ -57,11 +57,6 @@ use ext::hyper::BodyExt;
 use util::error_response;
 
 
-// TODO: command line flags for this
-const HOST: &'static str = "0.0.0.0";
-const PORT: u16 = 1337;
-
-
 lazy_static! {
     /// Application / package name, as filled out by Cargo.
     static ref NAME: &'static str = option_env!("CARGO_PKG_NAME").unwrap_or("rofld");
@@ -94,10 +89,9 @@ fn main() {
     start_server(opts);
 }
 
-fn start_server(_: args::Options) {
-    let addr = format!("{}:{}", HOST, PORT).parse().unwrap();
-    info!("Starting the server to listen on {}...", addr);
-    let server = Http::new().bind(&addr, || Ok(Rofl)).unwrap();
+fn start_server(opts: args::Options) {
+    info!("Starting the server to listen on {}...", opts.address);
+    let server = Http::new().bind(&opts.address, || Ok(Rofl)).unwrap();
 
     debug!("Entering event loop...");
     server.run().unwrap();
