@@ -3,6 +3,7 @@ name = "rofld"
 version = "0.1.0"
 dependencies = [
  "ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "atomic 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.23.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "conv 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "custom_derive 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -31,6 +32,7 @@ dependencies = [
  "spectral 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.36 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-signal 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-timer 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "try_opt 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -60,6 +62,11 @@ dependencies = [
  "nodrop 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "odds 0.2.25 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "atomic"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "atty"
@@ -925,6 +932,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-timer"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "futures 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slab 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "try_opt"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1021,6 +1037,7 @@ dependencies = [
 "checksum aho-corasick 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ca972c2ea5f742bfce5687b9aef75506a764f61d37f8f649047846a9686ddb66"
 "checksum ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "23ac7c30002a5accbf7e8987d0632fa6de155b7c3d39d0067317a391e00a2ef6"
 "checksum arrayvec 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)" = "35c1e907260135089def5aac0c66ca42624f2ed60652451812fedbc5a574baed"
+"checksum atomic 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "81e4fe666ae9dd4eea17160116a5f0d1e52f74504669bfc034e22850d6b7d406"
 "checksum atty 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d912da0db7fa85514874458ca3651fe2cddace8d0b0505571dbdcd41ab490159"
 "checksum base64 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9892882c3bd89ed02dec391c128984c772b663a29700c32b5de0b33861cdf2bd"
 "checksum bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
@@ -1126,6 +1143,7 @@ dependencies = [
 "checksum tokio-proto 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8fbb47ae81353c63c487030659494b295f6cb6576242f907f203473b191b0389"
 "checksum tokio-service 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "24da22d077e0f15f55162bdbdc661228c1581892f52074fb242678d015b45162"
 "checksum tokio-signal 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "3d121715f6917878a0df69f39365d01dd66c4463e4ba19efdcddcdfeb1bcb2bc"
+"checksum tokio-timer 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "86f33def658c14724fc13ec6289b3875a8152ee8ae767a5b1ccbded363b03db8"
 "checksum try_opt 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d30b71e7ba40551f9873f3ba9f4ee36f16015adf0962aba57caf403088370db1"
 "checksum unicase 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "13a5906ca2b98c799f4b1ab4557b76367ebd6ae5ef14930ec841c74aed5f3764"
 "checksum unicode-bidi 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "d3a078ebdd62c0e71a709c3d53d2af693fe09fe93fbff8344aebe289b78f9032"

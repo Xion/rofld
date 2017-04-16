@@ -3,6 +3,7 @@
 //!
 
              extern crate ansi_term;
+             extern crate atomic;
 #[macro_use] extern crate clap;
              extern crate conv;
 #[macro_use] extern crate custom_derive;
@@ -27,6 +28,7 @@
              extern crate slog_stdlog;
              extern crate slog_stream;
              extern crate tokio_signal;
+             extern crate tokio_timer;
              extern crate time;
 #[macro_use] extern crate try_opt;
 
@@ -41,12 +43,14 @@
 #[macro_use] extern crate spectral;
 
 
+#[macro_use]
+mod util;
+
 mod args;
 mod ext;
 mod caption;
 mod logging;
 mod service;
-mod util;
 
 
 use std::error::Error;
@@ -58,6 +62,7 @@ use futures::{Future, Stream};
 use hyper::server::Http;
 
 use args::{ArgsError, Options};
+use caption::CAPTIONER;
 
 
 lazy_static! {
@@ -112,7 +117,12 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
 /// This function only terminated when the server finishes.
 fn start_server(opts: Options) {
     info!("Starting the server to listen on {}...", opts.address);
-    let server = Http::new().bind(&opts.address, || Ok(service::Rofl)).unwrap();
+    let mut server = Http::new().bind(&opts.address, || Ok(service::Rofl)).unwrap();
+
+    server.shutdown_timeout(opts.shutdown_timeout);
+    trace!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
+    CAPTIONER.set_task_timeout(opts.request_timeout);
+    trace!("Request timeout set to {} secs", opts.request_timeout.as_secs());
 
     trace!("Setting up ^C handler...");
     let ctrl_c = tokio_signal::ctrl_c(&server.handle())

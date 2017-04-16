@@ -4,6 +4,8 @@ use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
 use std::net::{AddrParseError, SocketAddr};
+use std::num::ParseIntError;
+use std::time::Duration;
 
 use clap::{self, AppSettings, Arg, ArgMatches, ArgSettings};
 use conv::TryFrom;
@@ -37,8 +39,14 @@ pub struct Options {
     /// Corresponds to the number of times the -v flag has been passed.
     /// If -q has been used instead, this will be negative.
     pub verbosity: isize,
+
     /// Address where the server should listen on.
     pub address: SocketAddr,
+
+    // Maximum time allowed for a single caption request.
+    pub request_timeout: Duration,
+    // Maximum time the server will wait for pending connections to terminate.
+    pub shutdown_timeout: Duration,
 }
 
 #[allow(dead_code)]
@@ -77,9 +85,18 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             try!(addr.parse())
         };
 
+        let request_timeout = Duration::from_secs(
+            try!(matches.value_of(OPT_REQUEST_TIMEOUT).unwrap()
+                .parse::<u64>().map_err(ArgsError::RequestTimeout)));
+        let shutdown_timeout = Duration::from_secs(
+            try!(matches.value_of(OPT_SHUTDOWN_TIMEOUT).unwrap()
+                .parse::<u64>().map_err(ArgsError::ShutdownTimeout)));
+
         Ok(Options{
             verbosity: verbosity,
             address: address,
+            request_timeout: request_timeout,
+            shutdown_timeout: shutdown_timeout,
         })
     }
 }
@@ -87,14 +104,20 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 custom_derive! {
     /// Error that can occur while parsing of command line arguments.
     #[derive(Debug,
-             Error("command line arguments error"), ErrorDisplay, ErrorFrom)]
+             Error("command line arguments error"), ErrorDisplay)]
     pub enum ArgsError {
         /// General when parsing the arguments.
         Parse(clap::Error),
         /// Error while parsing the server address.
         Address(AddrParseError),
+        /// Error while parsing --request-timeout flag.
+        RequestTimeout(ParseIntError),
+        /// Error while parsing --shutdown-timeout flag.
+        ShutdownTimeout(ParseIntError),
     }
 }
+derive_enum_from!(clap::Error => ArgsError::Parse);
+derive_enum_from!(AddrParseError => ArgsError::Address);
 
 
 // Parser configuration
@@ -109,6 +132,8 @@ lazy_static! {
 }
 
 const ARG_ADDR: &'static str = "address";
+const OPT_REQUEST_TIMEOUT: &'static str = "request-timeout";
+const OPT_SHUTDOWN_TIMEOUT: &'static str = "shutdown-timeout";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
 
@@ -117,6 +142,8 @@ const DEFAULT_PORT: u16 = 1337;
 lazy_static! {
     static ref DEFAULT_ADDR: String = format!("{}:{}", DEFAULT_HOST, DEFAULT_PORT);
 }
+const DEFAULT_REQUEST_TIMEOUT: u32 = 10;
+const DEFAULT_SHUTDOWN_TIMEOUT: u32 = 30;
 
 
 /// Create the parser for application's command line.
@@ -144,6 +171,20 @@ fn create_parser<'p>() -> Parser<'p> {
                 "optionally followed by colon and a port number. ",
                 "Alternatively, a colon and port alone is also allowed, ",
                 "in which case the server will listen on all network interfaces.")))
+
+        // Timeout flags.
+        .arg(Arg::with_name(OPT_REQUEST_TIMEOUT)
+            .long("request-timeout")
+            .value_name("SECS")
+            .required(false)
+            .default_value(to_static_str!(DEFAULT_REQUEST_TIMEOUT))
+            .help("Maximum time allowed for a single request (secs)"))
+        .arg(Arg::with_name(OPT_SHUTDOWN_TIMEOUT)
+            .long("shutdown-timeout")
+            .value_name("SECS")
+            .required(false)
+            .default_value(to_static_str!(DEFAULT_SHUTDOWN_TIMEOUT))
+            .help("Time to wait for remaining connections during shutdown (secs)"))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)
