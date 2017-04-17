@@ -43,6 +43,10 @@ pub struct Options {
     /// Address where the server should listen on.
     pub address: SocketAddr,
 
+    /// Number of threads to use for image captioning.
+    /// If omitted, the actual count will be based on the number of CPUs.
+    pub render_threads: Option<usize>,
+
     // Maximum time allowed for a single caption request.
     pub request_timeout: Duration,
     // Maximum time the server will wait for pending connections to terminate.
@@ -85,6 +89,11 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             try!(addr.parse())
         };
 
+        let render_threads = match matches.value_of(OPT_RENDER_THREADS) {
+            Some(rt) => Some(try!(rt.parse::<usize>().map_err(ArgsError::RenderThreads))),
+            None => None,
+        };
+
         let request_timeout = Duration::from_secs(
             try!(matches.value_of(OPT_REQUEST_TIMEOUT).unwrap()
                 .parse::<u64>().map_err(ArgsError::RequestTimeout)));
@@ -95,6 +104,7 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         Ok(Options{
             verbosity: verbosity,
             address: address,
+            render_threads: render_threads,
             request_timeout: request_timeout,
             shutdown_timeout: shutdown_timeout,
         })
@@ -110,6 +120,8 @@ custom_derive! {
         Parse(clap::Error),
         /// Error while parsing the server address.
         Address(AddrParseError),
+        /// Error while parsing --render-threads flag.
+        RenderThreads(ParseIntError),
         /// Error while parsing --request-timeout flag.
         RequestTimeout(ParseIntError),
         /// Error while parsing --shutdown-timeout flag.
@@ -132,6 +144,7 @@ lazy_static! {
 }
 
 const ARG_ADDR: &'static str = "address";
+const OPT_RENDER_THREADS: &'static str = "render-threads";
 const OPT_REQUEST_TIMEOUT: &'static str = "request-timeout";
 const OPT_SHUTDOWN_TIMEOUT: &'static str = "shutdown-timeout";
 const OPT_VERBOSE: &'static str = "verbose";
@@ -171,6 +184,14 @@ fn create_parser<'p>() -> Parser<'p> {
                 "optionally followed by colon and a port number. ",
                 "Alternatively, a colon and port alone is also allowed, ",
                 "in which case the server will listen on all network interfaces.")))
+
+        .arg(Arg::with_name(OPT_RENDER_THREADS)
+            .value_name("N")
+            .required(false)
+            .help("Number of render threads to use")
+            .long_help(concat!(
+                "Number of threads used for image captioning.\n\n",
+                "If omitted, one thread per each CPU core will be used.")))
 
         // Timeout flags.
         .arg(Arg::with_name(OPT_REQUEST_TIMEOUT)

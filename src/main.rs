@@ -119,10 +119,15 @@ fn start_server(opts: Options) {
     info!("Starting the server to listen on {}...", opts.address);
     let mut server = Http::new().bind(&opts.address, || Ok(service::Rofl)).unwrap();
 
+    // Set configuration options from the command line flags.
+    if let Some(rt_count) = opts.render_threads {
+        CAPTIONER.set_thread_count(rt_count);
+        debug!("Number of threads for image captioning set to {}", rt_count);
+    }
     server.shutdown_timeout(opts.shutdown_timeout);
-    trace!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
+    debug!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
     CAPTIONER.set_task_timeout(opts.request_timeout);
-    trace!("Request timeout set to {} secs", opts.request_timeout.as_secs());
+    debug!("Request timeout set to {} secs", opts.request_timeout.as_secs());
 
     trace!("Setting up ^C handler...");
     let ctrl_c = tokio_signal::ctrl_c(&server.handle())

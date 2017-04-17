@@ -10,7 +10,7 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, TryLockError};
 use std::time::Duration;
 
 use atomic::{Atomic, Ordering};
@@ -20,7 +20,7 @@ use hyper::StatusCode;
 use hyper::server::Response;
 use image::{self, DynamicImage, FilterType, GenericImage};
 use rusttype::vector;
-use tokio_timer::{Timer, TimeoutError};
+use tokio_timer::{Timer, TimeoutError, TimerError};
 
 use util::error_response;
 use self::cache::Cache;
@@ -84,7 +84,7 @@ impl fmt::Debug for ImageMacro {
 
 /// Renders image macros into captioned images in separate threads.
 pub struct Captioner {
-    pool: CpuPool,
+    pool: Mutex<CpuPool>,
     cache: Arc<Cache>,
     timer: Timer,
     // Configuration params.
@@ -94,10 +94,7 @@ pub struct Captioner {
 impl Captioner {
     #[inline]
     fn new() -> Self {
-        // TODO: configure the number of threads from the command line
-        let pool = futures_cpupool::Builder::new()
-            .name_prefix("caption-")
-            .create();
+        let pool = Mutex::new(Self::pool_builder().create());
         let cache = Arc::new(Cache::new());
         let timer = Timer::default();
 
@@ -108,12 +105,37 @@ impl Captioner {
             task_timeout: Atomic::new(Duration::from_secs(0)),
         }
     }
+
+    #[inline]
+    #[doc(hidden)]
+    fn pool_builder() -> futures_cpupool::Builder {
+        let mut builder = futures_cpupool::Builder::new();
+        builder.name_prefix("caption-");
+        builder.after_start(|| trace!("Worker thread created in Captioner::pool"));
+        builder.before_stop(|| trace!("Stopping worker a thread from Captioner::pool"));
+        builder
+    }
 }
 
 // Configuration tweaks.
 impl Captioner {
     #[inline]
+    pub fn set_thread_count(&self, count: usize) -> &Self {
+        trace!("Setting thread count for image captioning to {}", count);
+
+        let mut builder = Self::pool_builder();
+        if count > 0 {
+            builder.pool_size(count);
+        }
+
+        let pool = builder.create();
+        *self.pool.lock().unwrap() = pool;
+        self
+    }
+
+    #[inline]
     pub fn set_task_timeout(&self, timeout: Duration) -> &Self {
+        trace!("Setting caption request timeout to {} secs", timeout.as_secs());
         self.task_timeout.store(timeout, Ordering::Relaxed);
         self
     }
@@ -124,8 +146,24 @@ impl Captioner {
     /// Render an image macro as PNG.
     /// The rendering is done in a separate thread.
     pub fn render(&self, im: ImageMacro) -> Box<Future<Item=Vec<u8>, Error=CaptionError>> {
+        let pool = match self.pool.try_lock() {
+            Ok(p) => p,
+            Err(TryLockError::WouldBlock) => {
+                // This should be only possible when set_thread_count() happens
+                // to have been called at the exact moment.
+                warn!("Could not immediately lock CpuPool to render {:?}", im);
+                // TODO: retry a few times, probably with exponential backoff
+                return future::err(CaptionError::Unavailable).boxed();
+            },
+            Err(e) => {
+                // TODO: is this a fatal error?
+                error!("Error while locking CpuPool for rendering {:?}: {}", im, e);
+                return future::err(CaptionError::Unavailable).boxed();
+            },
+        };
+
         // Spawn a task in the thread for the rendering process.
-        let task_future = self.pool.clone().spawn_fn({
+        let task_future = pool.spawn_fn({
             let im_repr = format!("{:?}", im);
             let task = CaptionTask{
                 image_macro: im,
@@ -278,10 +316,14 @@ impl CaptionTask {
 /// Error that may occur during the captioning.
 #[derive(Debug)]
 pub enum CaptionError {
+    // Errors related to rendering logic.
     Template(String),
     Font(String),
     Encode(io::Error),
+
+    // Other.
     Timeout,
+    Unavailable,
 }
 unsafe impl Send for CaptionError {}
 
@@ -293,6 +335,7 @@ impl CaptionError {
             CaptionError::Font(..) => StatusCode::NotFound,
             CaptionError::Encode(..) => StatusCode::InternalServerError,
             CaptionError::Timeout => StatusCode::InternalServerError,
+            CaptionError::Unavailable => StatusCode::ServiceUnavailable,
         }
     }
 }
@@ -314,6 +357,7 @@ impl fmt::Display for CaptionError {
             CaptionError::Font(ref f) => write!(fmt, "cannot find font `{}`", f),
             CaptionError::Encode(ref e) => write!(fmt, "failed to encode the  final image: {}", e),
             CaptionError::Timeout => write!(fmt, "caption task timed out"),
+            CaptionError::Unavailable => write!(fmt, "captioning currently unavailable"),
         }
     }
 }
@@ -326,8 +370,10 @@ impl Into<Response> for CaptionError {
 
 // Necessary for imposing a timeout on the CaptionTask.
 impl<F> From<TimeoutError<F>> for CaptionError {
-    fn from(_: TimeoutError<F>) -> Self {
-        // TODO: handle the NoCapacity case as a different error
-        CaptionError::Timeout
+    fn from(e: TimeoutError<F>) -> Self {
+        match e {
+            TimeoutError::Timer(_, TimerError::NoCapacity) => CaptionError::Unavailable,
+            _ => CaptionError::Timeout,
+        }
     }
 }
