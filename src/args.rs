@@ -70,19 +70,19 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let verbosity = verbose_count - quiet_count;
 
         let address: SocketAddr = {
-            let mut addr: Cow<_> = matches.value_of(ARG_ADDR).unwrap().into();
+            let mut addr: Cow<_> = matches.value_of(ARG_ADDR).unwrap().trim().into();
 
-            // Address can be just a port (e.g. ":4242"),
-            // in which case we prepend it with the default host.
-            let is_just_port = addr.starts_with(":")
-                && !addr.starts_with("::");  // eliminates IPv6 addresses like "::1"
-            if is_just_port {
+            // If the address is just a port (e.g. ":4242"),
+            // then we will prepend it with the default host.
+            if addr.starts_with(":") && addr.chars().skip(1).all(|c| c.is_digit(10)) {
                 addr = format!("{}{}", DEFAULT_HOST, addr).into();
             }
 
-            // XXX: this doesn't play well with IPv6; we need to have separate
-            // host & port args
-            if !addr.contains(":") || addr.contains("::") {
+            // Alternatively, it can be just an interface address, without a port,
+            // in which case we'll add the default port.
+            let is_just_ipv4 = addr.contains(".") && !addr.contains(":");
+            let is_just_ipv6 = addr.starts_with("[") && addr.ends_with("]");
+            if is_just_ipv4 || is_just_ipv6 {
                 addr = format!("{}:{}", addr, DEFAULT_PORT).into();
             }
 
@@ -152,9 +152,6 @@ const OPT_QUIET: &'static str = "quiet";
 
 const DEFAULT_HOST: &'static str = "0.0.0.0";
 const DEFAULT_PORT: u16 = 1337;
-lazy_static! {
-    static ref DEFAULT_ADDR: String = format!("{}:{}", DEFAULT_HOST, DEFAULT_PORT);
-}
 const DEFAULT_REQUEST_TIMEOUT: u32 = 10;
 const DEFAULT_SHUTDOWN_TIMEOUT: u32 = 30;
 
@@ -176,7 +173,7 @@ fn create_parser<'p>() -> Parser<'p> {
         .arg(Arg::with_name(ARG_ADDR)
             .value_name("ADDRESS:PORT")
             .required(false)
-            .default_value(&*DEFAULT_ADDR)
+            .default_value(to_static_str!(format!("{}:{}", DEFAULT_HOST, DEFAULT_PORT)))
             .help("Binds the server to given address")
             .long_help(concat!(
                 "The address and/or port for the server to listen on.\n\n",
@@ -251,14 +248,18 @@ mod tests {
         assert_that!(parse_from_argv(vec![*NAME, ":"])).is_err();
         // IP addresses alone are fine.
         assert_that!(parse_from_argv(vec![*NAME, "127.0.0.1"])).is_ok();
-        // FIXME: assert_that!(parse_from_argv(vec![*NAME, "0::1"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "[0::1]"])).is_ok();
         // Port alone is fine, with colon.
         assert_that!(parse_from_argv(vec![*NAME, ":1234"])).is_ok();
         assert_that!(parse_from_argv(vec![*NAME, ":31337"])).is_ok();
         // Both are fine.
         assert_that!(parse_from_argv(vec![*NAME, "127.0.0.1:2345"])).is_ok();
-        // FIXME: assert_that!(parse_from_argv(vec![*NAME, "0::1:2345"])).is_ok();
-        // FIXME: assert_that!(parse_from_argv(vec![*NAME, "::1:2345"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "[0::1]:2345"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "[::1]:2345"])).is_ok();
+        // Invalid address.
+        assert_that!(parse_from_argv(vec![*NAME, "0.0.1"])).is_err();
+        assert_that!(parse_from_argv(vec![*NAME, "[::1"])).is_err();
+        assert_that!(parse_from_argv(vec![*NAME, "127.0.0.1:"])).is_err();
         // Invalid port.
         assert_that!(parse_from_argv(vec![*NAME, "4242"])).is_err();  // need colon
         assert_that!(parse_from_argv(vec![*NAME, ":123456789"])).is_err();  // >65536
