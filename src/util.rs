@@ -5,7 +5,7 @@ use hyper::header::ContentType;
 use hyper::server::Response;
 
 
-/// Derive an implementation of From<InnerType> fpr one variant of a unary enum.
+/// Derive an implementation of From<InnerType> for one variant of a unary enum.
 /// Adapter from the source of error_derive crate.
 macro_rules! derive_enum_from(
     ($inner:ty => $enum_:ident::$variant:ident) => {
@@ -18,7 +18,7 @@ macro_rules! derive_enum_from(
 );
 
 /// Converts a value to a "static" (though not &'static) str
-/// so it cam be used with APIs that only accept borrowed strings.
+/// so it can be used with APIs that only accept borrowed strings.
 macro_rules! to_static_str(
     ($v:expr) => ({
         lazy_static! {

@@ -17,7 +17,6 @@ lazy_static! {
 pub fn load(template: &str) -> Option<image::DynamicImage> {
     debug!("Loading image macro template `{}`", template);
 
-    // TODO: cache templates
     let template_glob = &format!(
         "{}", TEMPLATE_DIR.join(template.to_owned() + ".*").display());
     let mut template_iter = match glob::glob(template_glob) {

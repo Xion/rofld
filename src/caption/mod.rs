@@ -27,7 +27,7 @@ use self::cache::Cache;
 use self::text::{HAlign, VAlign, Style};
 
 
-/// Describes an image macro, used as an input structure.
+/// Describes an image macro. Used as an input structure.
 #[derive(Deserialize)]
 pub struct ImageMacro {
     template: String,
@@ -82,7 +82,7 @@ impl fmt::Debug for ImageMacro {
 }
 
 
-/// Renders image macros into captioned images in separate threads.
+/// Renders image macros into captioned images.
 pub struct Captioner {
     pool: Mutex<CpuPool>,
     cache: Arc<Cache>,
@@ -162,7 +162,7 @@ impl Captioner {
             },
         };
 
-        // Spawn a task in the thread for the rendering process.
+        // Spawn a new task in the thread pool for the rendering process.
         let task_future = pool.spawn_fn({
             let im_repr = format!("{:?}", im);
             let task = CaptionTask{
@@ -196,14 +196,16 @@ impl Captioner {
 
 lazy_static! {
     /// The singleton instance of Captioner.
-    /// This is done to share the caches it holds.
     pub static ref CAPTIONER: Arc<Captioner> = Arc::new(Captioner::new());
 }
 
 /// Represents a single captioning task and contains all the relevant logic.
 ///
-/// This is a separate struct so that its methods can be conveniently executed
-/// in a separate thread.
+/// This is a separate struct so that the rendering state (e.g. the cache)
+/// can be easily carried between its methods.
+///
+/// All the code here is executed in a background thread,
+/// and so it can be synchronous.
 struct CaptionTask {
     image_macro: ImageMacro,
     cache: Arc<Cache>,
@@ -231,9 +233,9 @@ impl CaptionTask {
         self.encode_image(img)
     }
 
-    /// Resize the template image to fit the desired dimensions.
+    /// Resize template image to fit the desired dimensions.
     fn resize_template(&self, template: Arc<DynamicImage>) -> DynamicImage {
-        // Note that the resizing preserves original aspect, so the final image
+        // Note that resizing preserves original aspect, so the final image
         // may be smaller than requested.
         let (orig_width, orig_height) = template.dimensions();
         trace!("Original size of the template `{}`: {}x{}",

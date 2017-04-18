@@ -172,8 +172,8 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     };
     let mut position = align.origin_within(image_rect) + offset;
     if align.horizontal != HAlign::Left {
-        // Compute width as the final X position of the "caret"
-        // after laying out the glyphs starting from X=0.
+        // Compute text width as the final X position of the "caret"
+        // after laying out all the glyphs, starting from X=0.
         let glyphs: Vec<_> = style.font.layout(s, scale, point(0.0, /* unused */ 0.0)).collect();
         let width = glyphs.iter()
             .rev()
