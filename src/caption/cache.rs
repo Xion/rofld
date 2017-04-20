@@ -10,9 +10,8 @@ use rusttype::Font;
 use super::{fonts, templates};
 
 
-// TODO: make those settable from the command line
-const TEMPLATE_CACHE_SIZE: usize = 128;
-const FONT_CACHE_SIZE: usize = 16;
+const DEFAULT_TEMPLATE_CAPACITY: usize = 128;
+const DEFAULT_FONT_CAPACITY: usize = 16;
 
 
 /// Cache for data used in rendering of image macros.
@@ -27,9 +26,27 @@ impl Cache {
     #[inline]
     pub fn new() -> Self {
         Cache{
-            templates: Mutex::new(LruCache::new(TEMPLATE_CACHE_SIZE)),
-            fonts: Mutex::new(LruCache::new(FONT_CACHE_SIZE)),
+            templates: Mutex::new(LruCache::new(DEFAULT_TEMPLATE_CAPACITY)),
+            fonts: Mutex::new(LruCache::new(DEFAULT_FONT_CAPACITY)),
         }
+    }
+}
+
+impl Cache {
+    #[inline]
+    pub fn set_template_capacity(&self, capacity: usize) -> &Self {
+        self.templates.lock()
+            .expect("Cache::templates lock poisoned")
+            .set_capacity(capacity);
+        self
+    }
+
+    #[inline]
+    pub fn set_font_capacity(&self, capacity: usize) -> &Self {
+        self.fonts.lock()
+            .expect("Cache::fonts lock poisoned")
+            .set_capacity(capacity);
+        self
     }
 }
 
@@ -50,7 +67,6 @@ impl Cache {
 
         // Load the image template outside of the critical section.
         if let Some(img) = templates::load(name) {
-
             let img = Arc::new(img);
             self.templates.lock().expect("Cache::templates lock poisoned")
                 .insert(name.to_owned(), img.clone());

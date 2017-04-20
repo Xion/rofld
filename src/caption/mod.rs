@@ -117,6 +117,13 @@ impl Captioner {
     }
 }
 
+impl Captioner {
+    #[inline]
+    pub fn cache(&self) -> &Cache {
+        &*self.cache
+    }
+}
+
 // Configuration tweaks.
 impl Captioner {
     #[inline]
@@ -150,7 +157,7 @@ impl Captioner {
             Ok(p) => p,
             Err(TryLockError::WouldBlock) => {
                 // This should be only possible when set_thread_count() happens
-                // to have been called at the exact moment.
+                // to have been called at the exact same moment.
                 warn!("Could not immediately lock CpuPool to render {:?}", im);
                 // TODO: retry a few times, probably with exponential backoff
                 return future::err(CaptionError::Unavailable).boxed();

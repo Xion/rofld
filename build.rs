@@ -16,17 +16,17 @@ const REVISION_FILE: &'static str = "revision";
 fn main() {
     // Obtain Git SHA to pass it further as an environment variable,
     // so that it can be read in the binary code via env!() macro.
+    let mut revision_file = {
+        // We cannot pass it as an env!() variable to the crate code,
+        // so the workaround is to write it to a file for include_str!().
+        // Details: https://github.com/rust-lang/cargo/issues/2875
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let rev_path = Path::new(&out_dir).join(REVISION_FILE);
+        File::create(&rev_path).unwrap()
+    };
     match git_head_sha() {
-        Ok(rev) => {
-            // We cannot pass it as an env!() variable to the crate code,
-            // so the workaround is to write it to a file for include_str!().
-            // Details: https://github.com/rust-lang/cargo/issues/2875
-            let out_dir = env::var("OUT_DIR").unwrap();
-            let rev_path = Path::new(&out_dir).join(REVISION_FILE);
-            File::create(&rev_path).unwrap()
-                .write_all(&rev.into_bytes()).unwrap();
-        },
-        Err(e) => println!("warning=Failed to obtain current Git SHA: {}", e),
+        Ok(rev) => revision_file.write_all(&rev.into_bytes()).unwrap(),
+        Err(e) => println!("cargo:warning=Failed to obtain current Git SHA: {}", e),
     };
 }
 

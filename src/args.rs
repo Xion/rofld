@@ -47,6 +47,11 @@ pub struct Options {
     /// If omitted, the actual count will be based on the number of CPUs.
     pub render_threads: Option<usize>,
 
+    /// Size of the template cache.
+    pub template_cache_size: Option<usize>,
+    /// Size of the font cache.
+    pub font_cache_size: Option<usize>,
+
     // Maximum time allowed for a single caption request.
     pub request_timeout: Duration,
     // Maximum time the server will wait for pending connections to terminate.
@@ -94,6 +99,15 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             None => None,
         };
 
+        let template_cache_size = match matches.value_of(OPT_TEMPLATE_CACHE_SIZE) {
+            Some(tcs) => Some(try!(tcs.parse::<usize>().map_err(ArgsError::TemplateCache))),
+            None => None,
+        };
+        let font_cache_size = match matches.value_of(OPT_FONT_CACHE_SIZE) {
+            Some(fcs) => Some(try!(fcs.parse::<usize>().map_err(ArgsError::FontCache))),
+            None => None,
+        };
+
         let request_timeout = Duration::from_secs(
             try!(matches.value_of(OPT_REQUEST_TIMEOUT).unwrap()
                 .parse::<u64>().map_err(ArgsError::RequestTimeout)));
@@ -105,6 +119,8 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             verbosity: verbosity,
             address: address,
             render_threads: render_threads,
+            template_cache_size: template_cache_size,
+            font_cache_size: font_cache_size,
             request_timeout: request_timeout,
             shutdown_timeout: shutdown_timeout,
         })
@@ -122,6 +138,10 @@ custom_derive! {
         Address(AddrParseError),
         /// Error while parsing --render-threads flag.
         RenderThreads(ParseIntError),
+        /// Error while parsing --template-cache flag.
+        TemplateCache(ParseIntError),
+        /// Error while parsing --font-cache flag.
+        FontCache(ParseIntError),
         /// Error while parsing --request-timeout flag.
         RequestTimeout(ParseIntError),
         /// Error while parsing --shutdown-timeout flag.
@@ -145,6 +165,8 @@ lazy_static! {
 
 const ARG_ADDR: &'static str = "address";
 const OPT_RENDER_THREADS: &'static str = "render-threads";
+const OPT_TEMPLATE_CACHE_SIZE: &'static str = "template-cache";
+const OPT_FONT_CACHE_SIZE: &'static str = "font-cache";
 const OPT_REQUEST_TIMEOUT: &'static str = "request-timeout";
 const OPT_SHUTDOWN_TIMEOUT: &'static str = "shutdown-timeout";
 const OPT_VERBOSE: &'static str = "verbose";
@@ -189,6 +211,16 @@ fn create_parser<'p>() -> Parser<'p> {
             .long_help(concat!(
                 "Number of threads used for image captioning.\n\n",
                 "If omitted, one thread per each CPU core will be used.")))
+
+        // Cache capacity.
+        .arg(Arg::with_name(OPT_TEMPLATE_CACHE_SIZE)
+            .value_name("SIZE")
+            .required(false)
+            .help("Size of the template cache"))
+        .arg(Arg::with_name(OPT_FONT_CACHE_SIZE)
+            .value_name("SIZE")
+            .required(false)
+            .help("Size of the font cache"))
 
         // Timeout flags.
         .arg(Arg::with_name(OPT_REQUEST_TIMEOUT)
