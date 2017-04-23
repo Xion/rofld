@@ -19,7 +19,7 @@ use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
 use hyper::server::Response;
 use image::{self, DynamicImage, FilterType, GenericImage};
-use rusttype::vector;
+use rusttype::{Font, vector};
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
 use util::error_response;
@@ -235,7 +235,7 @@ impl CaptionTask {
 
         let mut img = self.resize_template(template);
         if self.has_text() {
-            img = self.draw_text(img)?;
+            img = self.draw_texts(img)?;
         }
         self.encode_image(img)
     }
@@ -267,7 +267,7 @@ impl CaptionTask {
 
     /// Draw the text from ImageMacro on given image.
     /// Returns a new image.
-    fn draw_text(&self, img: DynamicImage) -> Result<DynamicImage, CaptionError> {
+    fn draw_texts(&self, img: DynamicImage) -> Result<DynamicImage, CaptionError> {
         // Rendering text requires alpha blending.
         let mut img = img;
         if img.as_rgba8().is_none() {
@@ -275,36 +275,62 @@ impl CaptionTask {
             img = DynamicImage::ImageRgba8(img.to_rgba());
         }
 
+        trace!("Loading {} font from cache", self.font());
         let font = self.cache.get_font(self.font())
             .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
 
-        // TODO: moar constants, better encapsulation, all that jazz
-        let size = 64.0;
         if let Some(ref top_text) = self.top_text {
-            let alignment = (VAlign::Top, HAlign::Center);
-            let top_margin_px = 16.0;
-            debug!("Rendering top text: {}", top_text);
-            img = text::render_line(
-                img, top_text, alignment, vector(0.0, top_margin_px),
-                Style::white(&font, size));
+            img = self.draw_single_text(img, VAlign::Top, &*font, top_text);
         }
         if let Some(ref middle_text) = self.middle_text {
-            let alignment = (VAlign::Middle, HAlign::Center);
-            debug!("Rendering middle text: {}", middle_text);
-            img = text::render_line(
-                img, middle_text, alignment, vector(0.0, 0.0),
-                Style::white(&font, size));
+            img = self.draw_single_text(img, VAlign::Middle, &*font, middle_text);
         }
         if let Some(ref bottom_text) = self.bottom_text {
-            let alignment = (VAlign::Bottom, HAlign::Center);
-            let bottom_margin_px =  16.0;
-            debug!("Rendering bottom text: {}", bottom_text);
-            img = text::render_line(
-                img, bottom_text, alignment, vector(0.0, -bottom_margin_px),
-                Style::white(&font, size));
+            img = self.draw_single_text(img, VAlign::Bottom, &*font, bottom_text);
         }
 
         Ok(img)
+    }
+
+    /// Draws a single text (top, middle, or bottom one).
+    /// Returns a new image.
+    fn draw_single_text(&self, img: DynamicImage, valign: VAlign, font: &Font, text: &str) -> DynamicImage {
+        let mut img = img;
+
+        // Make sure the vertical margin isn't too large by limiting it
+        // to a small percentage of image height.
+        let max_margin: f32 = match valign {
+            VAlign::Top => { debug!("Rendering top text: {}", text); 16.0 },
+            VAlign::Middle => { debug!("Rendering middle text: {}", text); 0.0 },
+            VAlign::Bottom => { debug!("Rendering bottom text: {}", text); -16.0 },
+        };
+        let margin = max_margin.signum() * max_margin.abs().min(img.height() as f32 * 0.02);
+        trace!("Text margin computed as {}", margin);
+
+        let alignment = (valign, HAlign::Center);
+
+        let offset = vector(0.0, margin);
+        let text_size = 64.0;
+
+        // Draw four black copies of the text, shifted in four diagonal directions,
+        // to create the basis for an outline.
+        let outline_width = 1.0;
+        for &v in [vector(-outline_width, -outline_width),
+                   vector(outline_width, -outline_width),
+                   vector(outline_width, outline_width),
+                   vector(-outline_width, outline_width)].iter() {
+            let black = Style::black(&font, text_size);
+            let offset = offset + v;
+            trace!("Rendering outline part at {:?}", offset);
+            img = text::render_line(img, text, alignment, offset + v, black);
+        }
+
+        // Now render the white text in the original position.
+        trace!("Rendering final white text at {:?}", offset);
+        img = text::render_line(
+            img, text, alignment, offset, Style::white(&font, text_size));
+
+        img
     }
 
     /// Encode final result as PNG bytes.
