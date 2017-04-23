@@ -122,6 +122,7 @@ fn start_server(opts: Options) {
     let mut server = Http::new().bind(&opts.address, || Ok(service::Rofl)).unwrap();
 
     // Set configuration options from the command line flags.
+    trace!("Setting configuration options...");
     if let Some(rt_count) = opts.render_threads {
         CAPTIONER.set_thread_count(rt_count);
         debug!("Number of threads for image captioning set to {}", rt_count);
@@ -139,6 +140,8 @@ fn start_server(opts: Options) {
     CAPTIONER.set_task_timeout(opts.request_timeout);
     debug!("Request timeout set to {} secs", opts.request_timeout.as_secs());
 
+    // TODO: if two more ^C's are received when handling the first one,
+    // just quit immediately
     trace!("Setting up ^C handler...");
     let ctrl_c = tokio_signal::ctrl_c(&server.handle())
         .flatten_stream().into_future()  // Future<Stream> => Future<(first, rest)>

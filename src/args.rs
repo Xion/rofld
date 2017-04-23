@@ -205,6 +205,7 @@ fn create_parser<'p>() -> Parser<'p> {
                 "in which case the server will listen on all network interfaces.")))
 
         .arg(Arg::with_name(OPT_RENDER_THREADS)
+            .long("render-threads")
             .value_name("N")
             .required(false)
             .help("Number of render threads to use")
@@ -214,10 +215,12 @@ fn create_parser<'p>() -> Parser<'p> {
 
         // Cache capacity.
         .arg(Arg::with_name(OPT_TEMPLATE_CACHE_SIZE)
+            .long("template-cache")
             .value_name("SIZE")
             .required(false)
             .help("Size of the template cache"))
         .arg(Arg::with_name(OPT_FONT_CACHE_SIZE)
+            .long("font-cache")
             .value_name("SIZE")
             .required(false)
             .help("Size of the font cache"))
@@ -295,5 +298,41 @@ mod tests {
         // Invalid port.
         assert_that!(parse_from_argv(vec![*NAME, "4242"])).is_err();  // need colon
         assert_that!(parse_from_argv(vec![*NAME, ":123456789"])).is_err();  // >65536
+    }
+
+    #[test]
+    fn render_threads_arg() {
+        // Needs a value.
+        assert_that!(parse_from_argv(vec![*NAME, "--render-threads"])).is_err();
+        // Value must be a number.
+        assert_that!(parse_from_argv(vec![*NAME, "--render-threads", "foo"])).is_err();
+        // A positive number.
+        assert_that!(parse_from_argv(vec![*NAME, "--render-threads", "-42"])).is_err();
+        // This is fine.
+        assert_that!(parse_from_argv(vec![*NAME, "--render-threads", "16"])).is_ok();
+    }
+
+    #[test]
+    fn template_cache_arg() {
+        // Needs a value.
+        assert_that!(parse_from_argv(vec![*NAME, "--template-cache"])).is_err();
+        // Value must be a number.
+        assert_that!(parse_from_argv(vec![*NAME, "--template-cache", "foo"])).is_err();
+        // A positive number.
+        assert_that!(parse_from_argv(vec![*NAME, "--template-cache", "-42"])).is_err();
+        // This is fine.
+        assert_that!(parse_from_argv(vec![*NAME, "--template-cache", "16"])).is_ok();
+    }
+
+    #[test]
+    fn font_cache_arg() {
+        // Needs a value.
+        assert_that!(parse_from_argv(vec![*NAME, "--font-cache"])).is_err();
+        // Value must be a number.
+        assert_that!(parse_from_argv(vec![*NAME, "--font-cache", "foo"])).is_err();
+        // A positive number.
+        assert_that!(parse_from_argv(vec![*NAME, "--font-cache", "-42"])).is_err();
+        // This is fine.
+        assert_that!(parse_from_argv(vec![*NAME, "--font-cache", "16"])).is_ok();
     }
 }
