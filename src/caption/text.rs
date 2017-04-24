@@ -6,6 +6,9 @@ use std::ops::{Add, Div, Sub};
 use image::{DynamicImage, GenericImage, Rgb, Rgba};
 use num::One;
 use rusttype::{Font, point, Point, Rect, Scale, Vector};
+use unreachable::unreachable;
+
+pub use super::data::HAlign;
 
 
 /// Vertical alignment of text within a rectangle.
@@ -16,17 +19,9 @@ pub enum VAlign {
     Bottom,
 }
 
-/// Horizontal alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum HAlign {
-    Left,
-    Center,
-    Right,
-}
-
 
 /// Alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Alignment {
     pub vertical: VAlign,
     pub horizontal: HAlign,
@@ -47,6 +42,12 @@ impl From<(VAlign, HAlign)> for Alignment {
 impl From<(HAlign, VAlign)> for Alignment {
     fn from((h, v): (HAlign, VAlign)) -> Self {
         Alignment::new(v, h)
+    }
+}
+
+impl fmt::Debug for Alignment {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Alignment::{:?}{:?}", self.vertical, self.horizontal)
     }
 }
 
@@ -184,7 +185,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
         match align.horizontal {
             HAlign::Center => position.x -= width / 2.0,
             HAlign::Right => position.x -= width,
-            _ => unreachable!(),
+            _ => unsafe { unreachable(); },
         }
     }
     match align.vertical {

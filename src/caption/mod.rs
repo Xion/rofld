@@ -1,6 +1,7 @@
 //! Module implementing the actual image captioning.
 
 mod cache;
+mod data;
 pub mod fonts;
 pub mod templates;
 mod text;
@@ -17,69 +18,13 @@ use atomic::{Atomic, Ordering};
 use futures::{Future, future};
 use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
-use hyper::server::Response;
 use image::{self, DynamicImage, FilterType, GenericImage};
 use rusttype::{Font, vector};
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
-use util::error_response;
 use self::cache::Cache;
+pub use self::data::ImageMacro;
 use self::text::{HAlign, VAlign, Style};
-
-
-/// Describes an image macro. Used as an input structure.
-#[derive(Deserialize)]
-pub struct ImageMacro {
-    template: String,
-    width: Option<u32>,
-    height: Option<u32>,
-
-    font: Option<String>,
-    top_text: Option<String>,
-    middle_text: Option<String>,
-    bottom_text: Option<String>,
-}
-
-impl ImageMacro {
-    #[inline]
-    pub fn has_text(&self) -> bool {
-        self.top_text.is_some() || self.middle_text.is_some() || self.bottom_text.is_some()
-    }
-
-    #[inline]
-    pub fn font(&self) -> &str {
-        self.font.as_ref().map(|s| s.as_str()).unwrap_or(fonts::DEFAULT)
-    }
-}
-
-impl fmt::Debug for ImageMacro {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let mut ds = fmt.debug_struct("ImageMacro");
-        ds.field("template", &self.template);
-
-        if let Some(ref width) = self.width {
-            ds.field("width", width);
-        }
-        if let Some(ref height) = self.height {
-            ds.field("height", height);
-        }
-
-        if let Some(ref font) = self.font {
-            ds.field("font", font);
-        }
-        if let Some(ref text) = self.top_text {
-            ds.field("top_text", text);
-        }
-        if let Some(ref text) = self.middle_text {
-            ds.field("middle_text", text);
-        }
-        if let Some(ref text) = self.bottom_text {
-            ds.field("bottom_text", text);
-        }
-
-        ds.finish()
-    }
-}
 
 
 /// Renders image macros into captioned images.
@@ -280,13 +225,16 @@ impl CaptionTask {
             .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
 
         if let Some(ref top_text) = self.top_text {
-            img = self.draw_single_text(img, VAlign::Top, &*font, top_text);
+            let align = self.top_align.unwrap_or(HAlign::Center);
+            img = self.draw_single_text(img, align, VAlign::Top, &*font, top_text);
         }
         if let Some(ref middle_text) = self.middle_text {
-            img = self.draw_single_text(img, VAlign::Middle, &*font, middle_text);
+            let align = self.middle_align.unwrap_or(HAlign::Center);
+            img = self.draw_single_text(img, align, VAlign::Middle, &*font, middle_text);
         }
         if let Some(ref bottom_text) = self.bottom_text {
-            img = self.draw_single_text(img, VAlign::Bottom, &*font, bottom_text);
+            let align = self.bottom_align.unwrap_or(HAlign::Center);
+            img = self.draw_single_text(img, align, VAlign::Bottom, &*font, bottom_text);
         }
 
         Ok(img)
@@ -294,22 +242,32 @@ impl CaptionTask {
 
     /// Draws a single text (top, middle, or bottom one).
     /// Returns a new image.
-    fn draw_single_text(&self, img: DynamicImage, valign: VAlign, font: &Font, text: &str) -> DynamicImage {
+    fn draw_single_text(&self, img: DynamicImage,
+                        halign: HAlign, valign: VAlign,
+                        font: &Font, text: &str) -> DynamicImage {
         let mut img = img;
+        let alignment = (valign, halign);
 
         // Make sure the vertical margin isn't too large by limiting it
         // to a small percentage of image height.
-        let max_margin: f32 = match valign {
+        let max_vmargin: f32 = match valign {
             VAlign::Top => { debug!("Rendering top text: {}", text); 16.0 },
             VAlign::Middle => { debug!("Rendering middle text: {}", text); 0.0 },
             VAlign::Bottom => { debug!("Rendering bottom text: {}", text); -16.0 },
         };
-        let margin = max_margin.signum() * max_margin.abs().min(img.height() as f32 * 0.02);
-        trace!("Text margin computed as {}", margin);
+        let vmargin = max_vmargin.signum() * max_vmargin.abs().min(img.height() as f32 * 0.02);
+        trace!("Vertical text margin computed as {}", vmargin);
 
-        let alignment = (valign, HAlign::Center);
+        // Similarly for the horizontal margin.
+        let max_hmargin: f32 = match halign {
+            HAlign::Left => 12.0,
+            HAlign::Center => 0.0,
+            HAlign::Right => -12.0,
+        };
+        let hmargin = max_hmargin.signum() * max_hmargin.abs().min(img.width() as f32 * 0.02);
+        trace!("Horizontal text margin (for HAlign::{:?}) computed as {}", halign, hmargin);
 
-        let offset = vector(0.0, margin);
+        let offset = vector(hmargin, vmargin);
         let text_size = 64.0;
 
         // Draw four black copies of the text, shifted in four diagonal directions,
@@ -321,12 +279,10 @@ impl CaptionTask {
                    vector(-outline_width, outline_width)].iter() {
             let black = Style::black(&font, text_size);
             let offset = offset + v;
-            trace!("Rendering outline part at {:?}", offset);
             img = text::render_line(img, text, alignment, offset + v, black);
         }
 
         // Now render the white text in the original position.
-        trace!("Rendering final white text at {:?}", offset);
         img = text::render_line(
             img, text, alignment, offset, Style::white(&font, text_size));
 
@@ -394,12 +350,6 @@ impl fmt::Display for CaptionError {
             CaptionError::Timeout => write!(fmt, "caption task timed out"),
             CaptionError::Unavailable => write!(fmt, "captioning currently unavailable"),
         }
-    }
-}
-
-impl Into<Response> for CaptionError {
-    fn into(self) -> Response {
-        error_response(self.status_code(), format!("{}", self))
     }
 }
 

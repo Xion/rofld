@@ -1,9 +1,5 @@
 //! Utility code.
 
-use hyper::StatusCode;
-use hyper::header::ContentType;
-use hyper::server::Response;
-
 
 /// Derive an implementation of From<InnerType> for one variant of a unary enum.
 /// Adapter from the source of error_derive crate.
@@ -27,13 +23,3 @@ macro_rules! to_static_str(
         &*DUMMY as &str
     })
 );
-
-
-/// Create an erroneous JSON response.
-pub fn error_response<T: ToString>(status_code: StatusCode, message: T) -> Response {
-    let message = message.to_string();
-    Response::new()
-        .with_status(status_code)
-        .with_header(ContentType(mime!(Application/Json)))
-        .with_body(json!({"error": message}).to_string())
-}

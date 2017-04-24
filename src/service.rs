@@ -12,7 +12,6 @@ use serde_qs;
 use caption::{CAPTIONER, fonts, ImageMacro, templates};
 use ext::futures::{ArcFuture, FutureExt};
 use ext::hyper::BodyExt;
-use util::error_response;
 
 
 pub struct Rofl;
@@ -86,7 +85,9 @@ impl Rofl {
                         .with_header(ContentType(mime!(Image/Png)))
                         .with_body(image_bytes)
                 })
-                .or_else(|e| future::ok(e.into()))
+                .or_else(|e| future::ok(
+                    error_response(e.status_code(), format!("{}", e))
+                ))
                 .arc()
         })
         .arc()
@@ -119,4 +120,16 @@ impl Rofl {
             req.query().map(|q| format!("?{}", q)).unwrap_or_else(String::new),
             req.version());
     }
+}
+
+
+// Utility functions
+
+/// Create an erroneous JSON response.
+fn error_response<T: ToString>(status_code: StatusCode, message: T) -> Response {
+    let message = message.to_string();
+    Response::new()
+        .with_status(status_code)
+        .with_header(ContentType(mime!(Application/Json)))
+        .with_body(json!({"error": message}).to_string())
 }

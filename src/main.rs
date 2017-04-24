@@ -18,6 +18,7 @@
              extern crate lru_cache;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate mime;
+             extern crate nix;
              extern crate num;
              extern crate rusttype;
              extern crate serde;
@@ -32,6 +33,7 @@
              extern crate tokio_timer;
              extern crate time;
 #[macro_use] extern crate try_opt;
+             extern crate unreachable;
 
 // `slog` must precede `log` in declarations here, because we want to simultaneously:
 // * use the standard `log` macros (at least for a while)
@@ -93,6 +95,9 @@ fn main() {
     info!("{} {}{}", *NAME,
         VERSION.map(|v| format!("v{}", v)).unwrap_or_else(|| "<UNKNOWN VERSION>".into()),
         REVISION.map(|r| format!(" (rev. {})", r)).unwrap_or_else(|| "".into()));
+    if let Some(pid) = get_process_id() {
+        debug!("PID = {}", pid);
+    }
     for (i, arg) in env::args().enumerate() {
         trace!("argv[{}] = {:?}", i, arg);
     }
@@ -117,9 +122,20 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
     }
 }
 
+#[cfg(unix)]
+fn get_process_id() -> Option<i64> {
+    Some(nix::unistd::getpid() as i64)
+}
+
+#[cfg(not(unix))]
+fn get_process_id() -> Option<i64> {
+    warn!("Cannot retrieve process ID on non-Unix platforms");
+    None
+}
+
 
 /// Start the server with given options.
-/// This function only terminated when the server finishes.
+/// This function only terminates when the server finishes.
 fn start_server(opts: Options) {
     info!("Starting the server to listen on {}...", opts.address);
     let mut server = Http::new().bind(&opts.address, || Ok(service::Rofl)).unwrap();
