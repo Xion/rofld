@@ -27,6 +27,7 @@
              extern crate slog_envlogger;
              extern crate slog_stdlog;
              extern crate slog_stream;
+             extern crate tokio_core;
              extern crate tokio_signal;
              extern crate tokio_timer;
              extern crate time;
@@ -58,8 +59,9 @@ use std::env;
 use std::io::{self, Write};
 use std::process::exit;
 
-use futures::{Future, Stream};
-use hyper::server::Http;
+use futures::{BoxFuture, Future, Stream, stream};
+use hyper::server::{Http, NewService, Request, Response, Server};
+use tokio_core::reactor::Handle;
 
 use args::{ArgsError, Options};
 use caption::CAPTIONER;
@@ -115,13 +117,32 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
     }
 }
 
+
 /// Start the server with given options.
 /// This function only terminated when the server finishes.
 fn start_server(opts: Options) {
     info!("Starting the server to listen on {}...", opts.address);
     let mut server = Http::new().bind(&opts.address, || Ok(service::Rofl)).unwrap();
 
-    // Set configuration options from the command line flags.
+    set_config(opts, &mut server);
+    let ctrl_c = create_ctrl_c_handler(&server.handle());
+
+    debug!("Entering event loop...");
+    server.run_until(ctrl_c).unwrap_or_else(|e| {
+        error!("Failed to start the server's event loop: {}", e);
+        exit(74);  // EX_IOERR
+    });
+
+    info!("Server stopped.");
+}
+
+/// Set configuration options from the command line flags.
+fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
+    where S: NewService<Request=Request,
+                        Response=Response<B>,
+                        Error=hyper::Error> + Send + Sync + 'static,
+          B: Stream<Error=hyper::Error> + 'static, B::Item: AsRef<[u8]>
+{
     trace!("Setting configuration options...");
     if let Some(rt_count) = opts.render_threads {
         CAPTIONER.set_thread_count(rt_count);
@@ -139,20 +160,27 @@ fn start_server(opts: Options) {
     debug!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
     CAPTIONER.set_task_timeout(opts.request_timeout);
     debug!("Request timeout set to {} secs", opts.request_timeout.as_secs());
+}
 
-    // TODO: if two more ^C's are received when handling the first one,
-    // just quit immediately
-    trace!("Setting up ^C handler...");
-    let ctrl_c = tokio_signal::ctrl_c(&server.handle())
-        .flatten_stream().into_future()  // Future<Stream> => Future<(first, rest)>
-        .map(|x| { info!("Received shutdown signal..."); x })
-        .then(|_| Ok(()));
+/// Handle ^C and return a future a future that resolves when it's pressed.
+fn create_ctrl_c_handler(handle: &Handle) -> BoxFuture<(), ()> {
+    let max_ctrl_c_count = 3;
+    trace!("Setting up ^C handler: once to shutdown gracefully, {} times to abort...",
+        max_ctrl_c_count);
 
-    debug!("Entering event loop...");
-    server.run_until(ctrl_c).unwrap_or_else(|e| {
-        error!("Failed to start the server's event loop: {}", e);
-        exit(74);  // EX_IOERR
-    });
-
-    info!("Server stopped.");
+    tokio_signal::ctrl_c(handle)
+        .flatten_stream()  // Future<Stream> -> Stream (with delayed first element)
+        .map_err(|e| { error!("Error while handling ^C: {:?}", e); e })
+        .zip(stream::iter((1..).into_iter().map(Ok)))
+        .map(move |(x, i)| {
+            match i {
+                1 => info!("Received shutdown signal..."),
+                i if i == max_ctrl_c_count => { info!("Aborted."); exit(0); },
+                i => debug!("Got repeated ^C, {} more to abort", max_ctrl_c_count - i),
+            };
+            x
+        })
+        .into_future()  // Stream => Future<(first, rest)>
+        .then(|_| Ok(()))
+        .boxed()
 }

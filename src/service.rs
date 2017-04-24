@@ -52,16 +52,22 @@ impl Rofl {
         body.into_bytes().and_then(move |bytes| {
             let parsed_im: Result<_, Box<Error>> = match method {
                 Get => {
-                    trace!("Decoding image macro spec from {} bytes of query string",
-                        url.query().map(|q| q.len()).unwrap_or(0));
-                    serde_qs::from_str(url.query().unwrap_or("")).map_err(Into::into)
+                    let query = url.query().unwrap_or("");
+                    trace!("Caption request query string: {}", query);
+                    debug!("Decoding image macro spec from {} bytes of query string",
+                        query.len());
+                    serde_qs::from_str(query).map_err(Into::into)
                 },
                 Post => {
-                    trace!("Decoding image macro spec from {} bytes of JSON", bytes.len());
+                    trace!("Caption request body: {}", String::from_utf8_lossy(&bytes));
+                    debug!("Decoding image macro spec from {} bytes of JSON", bytes.len());
                     serde_json::from_reader(&*bytes).map_err(Into::into)
                 },
-                _ => return future::ok(
-                    Response::new().with_status(StatusCode::MethodNotAllowed)).arc(),
+                m => {
+                    warn!("Unsupported HTTP method for caption request: {}", m);
+                    return future::ok(
+                        Response::new().with_status(StatusCode::MethodNotAllowed)).arc();
+                },
             };
 
             let im: ImageMacro = match parsed_im {
