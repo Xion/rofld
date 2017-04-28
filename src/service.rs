@@ -2,7 +2,7 @@
 
 use std::error::Error;
 
-use futures::{future, Future};
+use futures::{BoxFuture, future, Future};
 use hyper::{self, Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Service, Request, Response};
@@ -10,7 +10,6 @@ use serde_json;
 use serde_qs;
 
 use caption::{CAPTIONER, fonts, ImageMacro, templates};
-use ext::futures::{ArcFuture, FutureExt};
 use ext::hyper::BodyExt;
 
 
@@ -20,7 +19,7 @@ impl Service for Rofl {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = ArcFuture<Self::Response, Self::Error>;
+    type Future = BoxFuture<Self::Response, Self::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
         // TODO: log the request after the response is served, in Common Log Format;
@@ -39,7 +38,7 @@ impl Service for Rofl {
         let error_resp = match (req.method(), req.path()) {
             _ => Response::new().with_status(StatusCode::NotFound),
         };
-        future::ok(error_resp).arc()
+        future::ok(error_resp).boxed()
     }
 }
 
@@ -65,7 +64,7 @@ impl Rofl {
                 m => {
                     warn!("Unsupported HTTP method for caption request: {}", m);
                     return future::ok(
-                        Response::new().with_status(StatusCode::MethodNotAllowed)).arc();
+                        Response::new().with_status(StatusCode::MethodNotAllowed)).boxed();
                 },
             };
 
@@ -74,7 +73,7 @@ impl Rofl {
                 Err(e) => {
                     error!("Failed to decode image macro: {}", e);
                     return future::ok(error_response(
-                        StatusCode::BadRequest, "cannot decode request")).arc();
+                        StatusCode::BadRequest, "cannot decode request")).boxed();
                 },
             };
             debug!("Decoded {:?}", im);
@@ -88,9 +87,9 @@ impl Rofl {
                 .or_else(|e| future::ok(
                     error_response(e.status_code(), format!("{}", e))
                 ))
-                .arc()
+                .boxed()
         })
-        .arc()
+        .boxed()
     }
 
     /// Handle the template listing request.
@@ -98,7 +97,7 @@ impl Rofl {
         let template_names = templates::list();
         let response = Response::new()
             .with_body(json!(template_names).to_string());
-        future::ok(response).arc()
+        future::ok(response).boxed()
     }
 
     /// Handle the font listing request.
@@ -106,7 +105,7 @@ impl Rofl {
         let font_names = fonts::list();
         let response = Response::new()
             .with_body(json!(font_names).to_string());
-        future::ok(response).arc()
+        future::ok(response).boxed()
     }
 }
 

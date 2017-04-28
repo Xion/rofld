@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::time::Duration;
 
 use atomic::{Atomic, Ordering};
-use futures::{Future, future};
+use futures::{BoxFuture, Future, future};
 use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
 use image::{self, DynamicImage, FilterType, GenericImage};
@@ -97,7 +97,7 @@ impl Captioner {
 impl Captioner {
     /// Render an image macro as PNG.
     /// The rendering is done in a separate thread.
-    pub fn render(&self, im: ImageMacro) -> Box<Future<Item=Vec<u8>, Error=CaptionError>> {
+    pub fn render(&self, im: ImageMacro) -> BoxFuture<Vec<u8>, CaptionError> {
         let pool = match self.pool.try_lock() {
             Ok(p) => p,
             Err(TryLockError::WouldBlock) => {
