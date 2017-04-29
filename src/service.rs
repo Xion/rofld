@@ -73,7 +73,8 @@ impl Rofl {
                 Err(e) => {
                     error!("Failed to decode image macro: {}", e);
                     return future::ok(error_response(
-                        StatusCode::BadRequest, "cannot decode request")).boxed();
+                        StatusCode::BadRequest,
+                        format!("cannot decode request: {}", e))).boxed();
                 },
             };
             debug!("Decoded {:?}", im);

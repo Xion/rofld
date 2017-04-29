@@ -8,16 +8,7 @@ use num::One;
 use rusttype::{Font, point, Point, Rect, Scale, Vector};
 use unreachable::unreachable;
 
-pub use super::data::HAlign;
-
-
-/// Vertical alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum VAlign {
-    Top,
-    Middle,
-    Bottom,
-}
+pub use super::data::{HAlign, VAlign};
 
 
 /// Alignment of text within a rectangle.

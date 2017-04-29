@@ -224,17 +224,8 @@ impl CaptionTask {
         let font = self.cache.get_font(self.font())
             .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
 
-        if let Some(ref top_text) = self.top_text {
-            let align = self.top_align.unwrap_or(HAlign::Center);
-            img = self.draw_single_text(img, align, VAlign::Top, &*font, top_text);
-        }
-        if let Some(ref middle_text) = self.middle_text {
-            let align = self.middle_align.unwrap_or(HAlign::Center);
-            img = self.draw_single_text(img, align, VAlign::Middle, &*font, middle_text);
-        }
-        if let Some(ref bottom_text) = self.bottom_text {
-            let align = self.bottom_align.unwrap_or(HAlign::Center);
-            img = self.draw_single_text(img, align, VAlign::Bottom, &*font, bottom_text);
+        for cap in &self.captions {
+            img = self.draw_single_text(img, cap.align, cap.valign, &*font, &cap.text);
         }
 
         Ok(img)
@@ -251,6 +242,8 @@ impl CaptionTask {
         // Make sure the vertical margin isn't too large by limiting it
         // to a small percentage of image height.
         let max_vmargin: f32 = match valign {
+            // TODO: change those log messages, they no longer apply
+            // when there can be arbitrary number of captions
             VAlign::Top => { debug!("Rendering top text: {}", text); 16.0 },
             VAlign::Middle => { debug!("Rendering middle text: {}", text); 0.0 },
             VAlign::Bottom => { debug!("Rendering bottom text: {}", text); -16.0 },
