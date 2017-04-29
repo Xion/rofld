@@ -225,7 +225,7 @@ impl CaptionTask {
             .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
 
         for cap in &self.captions {
-            img = self.draw_single_text(img, cap.align, cap.valign, &*font, &cap.text);
+            img = self.draw_single_text(img, cap.halign, cap.valign, &*font, &cap.text);
         }
 
         Ok(img)

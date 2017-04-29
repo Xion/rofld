@@ -25,6 +25,7 @@ glob = "0.2"
 hyper = { git = "https://github.com/hyperium/hyper.git" }
 image = "0.12"
 isatty = "0.1.1"
+itertools = "0.6"
 lazy_static = "*"
 log = "*"
 lru-cache = "0.1"
@@ -34,7 +35,6 @@ nix = "0.8"
 num = "0.1"
 rusttype = "0.2"
 serde = "1.0"
-serde_derive = "1.0"
 serde_json = "1.0"
 # TODO: change to 0.1 from crates.io when it's published there
 # (c.f. https://github.com/samscott89/serde_qs/issues/5)

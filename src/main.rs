@@ -14,6 +14,7 @@
              extern crate hyper;
              extern crate image;
              extern crate isatty;
+             extern crate itertools;
 #[macro_use] extern crate lazy_static;
              extern crate lru_cache;
 #[macro_use] extern crate maplit;
@@ -22,7 +23,6 @@
              extern crate num;
              extern crate rusttype;
              extern crate serde;
-#[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_json;
              extern crate serde_qs;
              extern crate slog_envlogger;
