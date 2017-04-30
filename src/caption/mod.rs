@@ -18,7 +18,7 @@ use image::{self, DynamicImage, FilterType, GenericImage};
 use rusttype::{Font, vector};
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
-use model::{HAlign, ImageMacro, VAlign};
+use model::{Color, HAlign, ImageMacro, VAlign};
 use resources::Cache;
 use self::text::Style;
 
@@ -221,7 +221,8 @@ impl CaptionTask {
             .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
 
         for cap in &self.captions {
-            img = self.draw_single_text(img, cap.halign, cap.valign, &*font, &cap.text);
+            img = self.draw_single_text(
+                img, cap.halign, cap.valign, &*font, cap.color, &cap.text);
         }
 
         Ok(img)
@@ -231,7 +232,7 @@ impl CaptionTask {
     /// Returns a new image.
     fn draw_single_text(&self, img: DynamicImage,
                         halign: HAlign, valign: VAlign,
-                        font: &Font, text: &str) -> DynamicImage {
+                        font: &Font, color: Color, text: &str) -> DynamicImage {
         let mut img = img;
         let alignment = (valign, halign);
 
@@ -262,18 +263,19 @@ impl CaptionTask {
         // Draw four black copies of the text, shifted in four diagonal directions,
         // to create the basis for an outline.
         let outline_width = 1.0;
+        let outline_color = color.invert();
         for &v in [vector(-outline_width, -outline_width),
                    vector(outline_width, -outline_width),
                    vector(outline_width, outline_width),
                    vector(-outline_width, outline_width)].iter() {
-            let black = Style::black(&font, text_size);
+            let style = Style::new(&font, text_size, outline_color);
             let offset = offset + v;
-            img = text::render_line(img, text, alignment, offset + v, black);
+            img = text::render_line(img, text, alignment, offset + v, style);
         }
 
         // Now render the white text in the original position.
-        img = text::render_line(
-            img, text, alignment, offset, Style::white(&font, text_size));
+        let style = Style::new(&font, text_size, color);
+        img = text::render_line(img, text, alignment, offset, style);
 
         img
     }

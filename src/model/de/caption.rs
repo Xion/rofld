@@ -4,10 +4,13 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Visitor};
 
-use super::super::{Caption, HAlign};
+use super::super::{Caption, Color, HAlign};
 
 
-const FIELDS: &'static [&'static str] = &["text", "align", "valign"];
+const FIELDS: &'static [&'static str] = &["text", "align", "valign", "color"];
+
+pub const DEFAULT_COLOR: Color = Color(0xff, 0xff, 0xff);
+pub const DEFAULT_HALIGN: HAlign = HAlign::Center;
 
 
 impl<'de> Deserialize<'de> for Caption {
@@ -32,6 +35,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let mut text = None;
         let mut halign = None;
         let mut valign = None;
+        let mut color = None;
 
         while let Some(key) = map.next_key::<String>()? {
             let key = key.trim().to_lowercase();
@@ -54,17 +58,25 @@ impl<'de> Visitor<'de> for CaptionVisitor {
                     }
                     valign = Some(map.next_value()?)
                 }
+                "color" => {
+                    if color.is_some() {
+                        return Err(de::Error::duplicate_field("color"));
+                    }
+                    color = Some(map.next_value()?)
+                }
                 key => return Err(de::Error::unknown_field(key, FIELDS)),
             }
         }
 
         let text = text.ok_or_else(|| de::Error::missing_field("text"))?;
-        let halign = halign.unwrap_or(HAlign::Center);
+        let halign = halign.unwrap_or(DEFAULT_HALIGN);
         let valign = valign.ok_or_else(|| de::Error::missing_field("valign"))?;
+        let color = color.unwrap_or(DEFAULT_COLOR);
         Ok(Caption{
             text: text,
             halign: halign,
             valign: valign,
+            color: color,
         })
     }
 }

@@ -5,6 +5,8 @@ mod de;
 
 use std::fmt;
 
+use image::{Rgb, Rgba};
+
 use resources::fonts;
 
 
@@ -23,10 +25,11 @@ pub struct ImageMacro {
 #[derive(Clone, PartialEq)]
 pub struct Caption {
     // TODO: allow to customize font on per-caption basis
-    // TODO: text color & outline color
+    // TODO: outline color
     pub text: String,
     pub halign: HAlign,
     pub valign: VAlign,
+    pub color: Color,
 }
 
 /// Horizontal alignment of text within a rectangle.
@@ -44,6 +47,10 @@ pub enum VAlign {
     Middle,
     Bottom,
 }
+
+/// RGB color of the text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Color(u8, u8, u8);
 
 
 impl ImageMacro {
@@ -85,11 +92,44 @@ impl Default for Caption {
             text: String::new(),
             halign: HAlign::Center,
             valign: VAlign::Bottom,
+            color: Color(0xff, 0xff, 0xff),
         }
     }
 }
 impl fmt::Debug for Caption {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{:?}{:?}({:?})", self.valign, self.halign, self.text)
+    }
+}
+
+impl Color {
+    #[inline]
+    pub fn gray(value: u8) -> Self {
+        Color(value, value, value)
+    }
+}
+impl Color {
+    #[inline]
+    pub fn invert(self) -> Self {
+        let Color(r, g, b) = self;
+        Color(0xff - r, 0xff - g, 0xff - b)
+    }
+
+    #[inline]
+    pub fn to_rgb(&self) -> Rgb<u8> {
+        let &Color(r, g, b) = self;
+        Rgb{data: [r, g, b]}
+    }
+
+    #[inline]
+    pub fn to_rgba(&self, alpha: u8) -> Rgba<u8> {
+        let &Color(r, g, b) = self;
+        Rgba{data: [r, g, b, alpha]}
+    }
+}
+impl From<Color> for Rgb<u8> {
+    #[inline]
+    fn from(color: Color) -> Rgb<u8> {
+        color.to_rgb()
     }
 }

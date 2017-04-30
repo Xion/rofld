@@ -3,12 +3,12 @@
 use std::fmt;
 use std::ops::{Add, Div, Sub};
 
-use image::{DynamicImage, GenericImage, Rgb, Rgba};
+use image::{DynamicImage, GenericImage};
 use num::One;
 use rusttype::{Font, point, Point, Rect, Scale, Vector};
 use unreachable::unreachable;
 
-use model::{HAlign, VAlign};
+use model::{Color, HAlign, VAlign};
 
 
 /// Alignment of text within a rectangle.
@@ -64,42 +64,13 @@ impl Alignment {
 }
 
 
-/// RGB color of the text.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Color(u8, u8, u8);
-
-impl Color {
-    #[inline]
-    pub fn gray(value: u8) -> Self {
-        Color(value, value, value)
-    }
-}
-impl Color {
-    #[inline]
-    pub fn to_rgb(&self) -> Rgb<u8> {
-        let &Color(r, g, b) = self;
-        Rgb{data: [r, g, b]}
-    }
-
-    #[inline]
-    pub fn to_rgba(&self, alpha: u8) -> Rgba<u8> {
-        let &Color(r, g, b) = self;
-        Rgba{data: [r, g, b, alpha]}
-    }
-}
-impl From<Color> for Rgb<u8> {
-    #[inline]
-    fn from(color: Color) -> Rgb<u8> {
-        color.to_rgb()
-    }
-}
-
 /// Style that the text is render with.
 pub struct Style<'f> {
     font: &'f Font<'f>,
     size: f32,
     color: Color,
 }
+
 impl<'f> Style<'f> {
     #[inline]
     pub fn new(font: &'f Font, size: f32, color: Color) -> Self {
@@ -108,17 +79,8 @@ impl<'f> Style<'f> {
         }
         Style{font: font, size: size, color: color}
     }
-
-    #[inline]
-    pub fn white(font: &'f Font, size: f32) -> Self {
-        Style::new(font, size, Color::gray(0xff))
-    }
-
-    #[inline]
-    pub fn black(font: &'f Font, size: f32) -> Self {
-        Style::new(font, size, Color::gray(0x0))
-    }
 }
+
 impl<'f> fmt::Debug for Style<'f> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Style")

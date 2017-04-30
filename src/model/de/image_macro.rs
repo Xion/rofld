@@ -7,7 +7,13 @@ use std::mem;
 use itertools::Itertools;
 use serde::de::{self, Deserialize, Visitor};
 
-use super::super::{Caption, HAlign, ImageMacro, VAlign};
+use super::super::{Caption, ImageMacro, VAlign};
+use super::caption::{DEFAULT_COLOR, DEFAULT_HALIGN};
+
+
+const FIELDS: &'static [&'static str] = &[
+    "template", "width", "height", "font", "captions",
+];
 
 
 impl<'de> Deserialize<'de> for ImageMacro {
@@ -141,12 +147,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     }
                 }
 
-                key => {
-                    const FIELDS: &'static [&'static str] = &[
-                        "template", "width", "height", "font", "captions",
-                    ];
-                    return Err(de::Error::unknown_field(key, FIELDS));
-                 }
+                key => return Err(de::Error::unknown_field(key, FIELDS)),
             }
         }
 
@@ -209,8 +210,9 @@ impl<'de> Visitor<'de> for SourcedCaptionVisitor {
     fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
         let caption = Caption{
             text: text.to_owned(),
-            halign: HAlign::Center,
+            halign: DEFAULT_HALIGN,
             valign: unsafe { mem::uninitialized() },
+            color: DEFAULT_COLOR,
         };
         let result = SourcedCaption(CaptionSource::Text, caption);
         Ok(result)

@@ -1,4 +1,4 @@
-//! Miscellaneous deserializers.
+//! Deserializers for the alignment types.
 
 use std::fmt;
 
@@ -8,7 +8,7 @@ use super::super::{HAlign, VAlign};
 
 
 impl<'de> Deserialize<'de> for HAlign {
-    fn deserialize<D>(deserializer: D) -> Result<HAlign, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>
     {
         deserializer.deserialize_str(HAlignVisitor)
@@ -35,7 +35,7 @@ impl<'de> Visitor<'de> for HAlignVisitor {
 
 
 impl<'de> Deserialize<'de> for VAlign {
-    fn deserialize<D>(deserializer: D) -> Result<VAlign, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>
     {
         deserializer.deserialize_str(VAlignVisitor)
