@@ -53,6 +53,8 @@ mod args;
 mod ext;
 mod caption;
 mod logging;
+mod model;
+mod resources;
 mod service;
 
 

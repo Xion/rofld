@@ -1,103 +1,14 @@
-//! Defines the input data for captioning.
+//! Deserializer for the ImageMacro type.
 
 use std::collections::HashMap;
 use std::fmt;
 use std::mem;
 
 use itertools::Itertools;
-use serde::de::{self, Deserialize, Unexpected, Visitor};
+use serde::de::{self, Deserialize, Visitor};
 
-use super::fonts;
+use super::super::{Caption, HAlign, ImageMacro, VAlign};
 
-
-/// Describes an image macro. Used as an input structure.
-#[derive(PartialEq)]
-pub struct ImageMacro {
-    pub template: String,
-    pub width: Option<u32>,
-    pub height: Option<u32>,
-
-    pub font: Option<String>,
-    pub captions: Vec<Caption>,
-}
-
-/// Describes a single piece of text rendered on the image macro.
-#[derive(Clone, PartialEq)]
-pub struct Caption {
-    // TODO: allow to customize font on per-caption basis
-    // TODO: text color & outline color
-    pub text: String,
-    pub halign: HAlign,
-    pub valign: VAlign,
-}
-
-/// Horizontal alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum HAlign {
-    Left,
-    Center,
-    Right,
-}
-
-/// Vertical alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum VAlign {
-    Top,
-    Middle,
-    Bottom,
-}
-
-
-impl ImageMacro {
-    #[inline]
-    pub fn has_text(&self) -> bool {
-        self.captions.len() > 0 && self.captions.iter().any(|c| !c.text.is_empty())
-    }
-
-    #[inline]
-    pub fn font(&self) -> &str {
-        self.font.as_ref().map(|s| s.as_str()).unwrap_or(fonts::DEFAULT)
-    }
-}
-impl fmt::Debug for ImageMacro {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let mut ds = fmt.debug_struct("ImageMacro");
-        ds.field("template", &self.template);
-
-        macro_rules! fmt_opt_field {
-            ($name:ident) => (
-                if let Some(ref $name) = self.$name {
-                    ds.field(stringify!($name), $name);
-                }
-            );
-        }
-        fmt_opt_field!(width);
-        fmt_opt_field!(height);
-        fmt_opt_field!(font);
-
-        ds.field("captions", &self.captions);
-
-        ds.finish()
-    }
-}
-
-impl Default for Caption {
-    fn default() -> Self {
-        Caption{
-            text: String::new(),
-            halign: HAlign::Center,
-            valign: VAlign::Bottom,
-        }
-    }
-}
-impl fmt::Debug for Caption {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{:?}{:?}({:?})", self.valign, self.halign, self.text)
-    }
-}
-
-
-// ImageMacro deserializer
 
 impl<'de> Deserialize<'de> for ImageMacro {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -308,134 +219,11 @@ impl<'de> Visitor<'de> for SourcedCaptionVisitor {
     fn visit_map<V>(self, map: V) -> Result<Self::Value, V::Error>
         where V: de::MapAccess<'de>
     {
-        // Use the default way of deserializing Caption from a map (defined below).
+        // Use the default way of deserializing Caption from a map.
         let inner_de = de::value::MapAccessDeserializer::new(map);
         let caption = Deserialize::deserialize(inner_de)?;
 
         let result = SourcedCaption(CaptionSource::Map, caption);
         Ok(result)
-    }
-}
-
-
-// Caption deserializer
-
-impl<'de> Deserialize<'de> for Caption {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: de::Deserializer<'de>
-    {
-        deserializer.deserialize_map(CaptionVisitor)
-    }
-}
-
-struct CaptionVisitor;
-impl<'de> Visitor<'de> for CaptionVisitor {
-    type Value = Caption;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "representation of an image macro's caption")
-    }
-
-    fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
-        where V: de::MapAccess<'de>
-    {
-        let mut text = None;
-        let mut halign = None;
-        let mut valign = None;
-
-        while let Some(key) = map.next_key::<String>()? {
-            let key = key.trim().to_lowercase();
-            match key.as_str() {
-                "text" => {
-                    if text.is_some() {
-                        return Err(de::Error::duplicate_field("text"));
-                    }
-                    text = Some(map.next_value()?);
-                }
-                "align" | "halign" => {
-                    if halign.is_some() {
-                        return Err(de::Error::duplicate_field("align"));
-                    }
-                    halign = Some(map.next_value()?)
-                }
-                "valign" => {
-                    if valign.is_some() {
-                        return Err(de::Error::duplicate_field("valign"));
-                    }
-                    valign = Some(map.next_value()?)
-                }
-                key => {
-                    const FIELDS: &'static [&'static str] = &[
-                        "text", "align", "valign",
-                    ];
-                    return Err(de::Error::unknown_field(key, FIELDS));
-                }
-            }
-        }
-
-        let text = text.ok_or_else(|| de::Error::missing_field("text"))?;
-        let halign = halign.unwrap_or(HAlign::Center);
-        let valign = valign.ok_or_else(|| de::Error::missing_field("valign"))?;
-        Ok(Caption{
-            text: text,
-            halign: halign,
-            valign: valign,
-        })
-    }
-}
-
-
-// Deserializers for other stuff
-
-impl<'de> Deserialize<'de> for HAlign {
-    fn deserialize<D>(deserializer: D) -> Result<HAlign, D::Error>
-        where D: de::Deserializer<'de>
-    {
-        deserializer.deserialize_str(HAlignVisitor)
-    }
-}
-
-struct HAlignVisitor;
-impl<'de> Visitor<'de> for HAlignVisitor {
-    type Value = HAlign;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "'left', 'center', or 'right'")
-    }
-
-    fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-        match &v.trim().to_lowercase() as &str {
-            "left" => Ok(HAlign::Left),
-            "center" => Ok(HAlign::Center),
-            "right" => Ok(HAlign::Right),
-            _ => Err(E::invalid_value(Unexpected::Str(v), &self)),
-        }
-    }
-}
-
-
-impl<'de> Deserialize<'de> for VAlign {
-    fn deserialize<D>(deserializer: D) -> Result<VAlign, D::Error>
-        where D: de::Deserializer<'de>
-    {
-        deserializer.deserialize_str(VAlignVisitor)
-    }
-}
-
-struct VAlignVisitor;
-impl<'de> Visitor<'de> for VAlignVisitor {
-    type Value = VAlign;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "'top', 'middle', or 'bottom'")
-    }
-
-    fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-        match &v.trim().to_lowercase() as &str {
-            "top" => Ok(VAlign::Top),
-            "middle" => Ok(VAlign::Middle),
-            "bottom" => Ok(VAlign::Bottom),
-            _ => Err(E::invalid_value(Unexpected::Str(v), &self)),
-        }
     }
 }

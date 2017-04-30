@@ -1,9 +1,5 @@
 //! Module implementing the actual image captioning.
 
-mod cache;
-mod data;
-pub mod fonts;
-pub mod templates;
 mod text;
 
 
@@ -22,9 +18,9 @@ use image::{self, DynamicImage, FilterType, GenericImage};
 use rusttype::{Font, vector};
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
-use self::cache::Cache;
-pub use self::data::ImageMacro;
-use self::text::{HAlign, VAlign, Style};
+use model::{HAlign, ImageMacro, VAlign};
+use resources::Cache;
+use self::text::Style;
 
 
 /// Renders image macros into captioned images.

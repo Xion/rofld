@@ -8,7 +8,7 @@ use num::One;
 use rusttype::{Font, point, Point, Rect, Scale, Vector};
 use unreachable::unreachable;
 
-pub use super::data::{HAlign, VAlign};
+use model::{HAlign, VAlign};
 
 
 /// Alignment of text within a rectangle.

@@ -9,8 +9,10 @@ use hyper::server::{Service, Request, Response};
 use serde_json;
 use serde_qs;
 
-use caption::{CAPTIONER, fonts, ImageMacro, templates};
+use caption::CAPTIONER;
 use ext::hyper::BodyExt;
+use model::ImageMacro;
+use resources::{list_fonts, list_templates};
 
 
 pub struct Rofl;
@@ -95,7 +97,7 @@ impl Rofl {
 
     /// Handle the template listing request.
     fn handle_list_templates(&self, _: Request) -> <Self as Service>::Future {
-        let template_names = templates::list();
+        let template_names = list_templates();
         let response = Response::new()
             .with_body(json!(template_names).to_string());
         future::ok(response).boxed()
@@ -103,7 +105,7 @@ impl Rofl {
 
     /// Handle the font listing request.
     fn handle_list_fonts(&self, _: Request) -> <Self as Service>::Future {
-        let font_names = fonts::list();
+        let font_names = list_fonts();
         let response = Response::new()
             .with_body(json!(font_names).to_string());
         future::ok(response).boxed()
