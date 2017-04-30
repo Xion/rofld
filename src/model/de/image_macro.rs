@@ -7,8 +7,7 @@ use std::mem;
 use itertools::Itertools;
 use serde::de::{self, Deserialize, Visitor};
 
-use super::super::{Caption, ImageMacro, VAlign};
-use super::caption::{DEFAULT_COLOR, DEFAULT_HALIGN};
+use super::super::{Caption, ImageMacro, VAlign, DEFAULT_COLOR, DEFAULT_HALIGN};
 
 
 const FIELDS: &'static [&'static str] = &[

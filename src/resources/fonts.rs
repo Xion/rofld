@@ -14,9 +14,6 @@ lazy_static! {
         env::current_dir().unwrap().join("data").join("fonts");
 }
 
-/// Name of the default font.
-pub const DEFAULT: &'static str = "Impact";
-
 
 /// Load the font with given name.
 pub fn load<'f>(name: &str) -> Option<Font<'f>> {

@@ -34,6 +34,7 @@ impl<'de> Visitor<'de> for ColorVisitor {
         }
         let mut s = s.to_lowercase();
 
+        // TODO: support "rgb($r, $g, $b)" like CSS does
         // TODO: support canned list of CSS colors
 
         // rgb -> rrggbb

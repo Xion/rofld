@@ -4,13 +4,10 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Visitor};
 
-use super::super::{Caption, Color, HAlign};
+use super::super::{Caption, DEFAULT_HALIGN, DEFAULT_COLOR};
 
 
 const FIELDS: &'static [&'static str] = &["text", "align", "valign", "color"];
-
-pub const DEFAULT_COLOR: Color = Color(0xff, 0xff, 0xff);
-pub const DEFAULT_HALIGN: HAlign = HAlign::Center;
 
 
 impl<'de> Deserialize<'de> for Caption {
