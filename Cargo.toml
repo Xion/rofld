@@ -16,6 +16,8 @@ ansi_term = "0.9"
 atomic = "0.3"
 clap = { version = "2.19", features = ["suggestions"] }
 conv = "0.3"
+# TODO: change to crates.io version when a new version is published
+css-color-parser = { git = "https://github.com/7thSigil/css-color-parser-rs.git" }
 custom_derive = "*"
 error_derive = "*"
 futures = "0.1"

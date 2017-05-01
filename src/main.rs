@@ -6,6 +6,7 @@
              extern crate atomic;
 #[macro_use] extern crate clap;
              extern crate conv;
+             extern crate css_color_parser;
 #[macro_use] extern crate custom_derive;
 #[macro_use] extern crate error_derive;
              extern crate futures;
