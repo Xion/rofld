@@ -42,10 +42,8 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         let mut simple_captions: HashMap<VAlign, Caption> = HashMap::new();
         let mut full_captions: Option<Vec<Caption>> = None;
 
-        while let Some(key) = map.next_key()? {
-            let key: String = key;  // Rust is silly and needs a type hint here
+        while let Some(key) = map.next_key::<String>()? {
             let key = key.trim().to_lowercase();
-
             match key.as_str() {
                 // Data that's typically expected (or even mandatory).
                 "template" => {

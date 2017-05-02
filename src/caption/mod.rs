@@ -270,12 +270,12 @@ impl CaptionTask {
                    vector(-outline_width, outline_width)].iter() {
             let style = Style::new(&font, text_size, outline_color);
             let offset = offset + v;
-            img = text::render_line(img, text, alignment, offset + v, style);
+            img = text::render_text(img, text, alignment, offset + v, style);
         }
 
         // Now render the white text in the original position.
         let style = Style::new(&font, text_size, color);
-        img = text::render_line(img, text, alignment, offset, style);
+        img = text::render_text(img, text, alignment, offset, style);
 
         img
     }

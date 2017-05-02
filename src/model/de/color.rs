@@ -221,12 +221,14 @@ mod tests {
         assert_that!(Color::from_str("#0f0")).is_ok().is_equal_to(Color(0, 0xff, 0));
         assert_that!(Color::from_str("#00ff00")).is_ok().is_equal_to(Color(0, 0xff, 0));
         assert_that!(Color::from_str("0xff0000")).is_ok().is_equal_to(Color(0xff, 0, 0));
-        assert_that!(Color::from_str("0x0000ff")).is_ok().is_equal_to(Color(0, 0, 0xff));
+        assert_that!(Color::from_str("$0000ff")).is_ok().is_equal_to(Color(0, 0, 0xff));
         // These are forbidden because it's unclear what they would mean.
         assert_that!(Color::from_str("0xf0f")).is_err();
         assert_that!(Color::from_str("$ff0")).is_err();
         // Multiple prefixes are NOT cleared.
         assert_that!(Color::from_str("$0x00ffff")).is_err();
+        // We do need a prefix though (otherwise it's ambiguous if it's hex or name).
+        assert_that!(Color::from_str("f0f0f0")).is_err();
     }
 
     #[test]

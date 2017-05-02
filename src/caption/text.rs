@@ -64,7 +64,7 @@ impl Alignment {
 }
 
 
-/// Style that the text is render with.
+/// Style that the text is rendered with.
 pub struct Style<'f> {
     font: &'f Font<'f>,
     size: f32,
@@ -79,6 +79,11 @@ impl<'f> Style<'f> {
         }
         Style{font: font, size: size, color: color}
     }
+
+    #[inline]
+    pub fn scale(&self) -> Scale {
+        Scale::uniform(self.size)
+    }
 }
 
 impl<'f> fmt::Debug for Style<'f> {
@@ -92,14 +97,42 @@ impl<'f> fmt::Debug for Style<'f> {
 }
 
 
-// TODO: render multiline text
-
-
-/// Renders a line of text onto given image.
-pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
+/// Renders text onto given image.
+pub fn render_text<A: Into<Alignment>>(img: DynamicImage,
                                        s: &str,
                                        align: A, offset: Vector<f32>,
                                        style: Style) -> DynamicImage {
+    let mut img = img;
+    let align: Alignment = align.into();
+    trace!("render_text(..., <length: {}>, {:?}, offset={:?}, {:?})",
+        s.len(), align, offset, style);
+
+    let line_width = img.width() as f32 - offset.x;
+    let lines = break_lines(s, &style, line_width);
+    trace!("Text broken into {} line(s)", lines.len());
+
+    let v_metrics = style.font.v_metrics(style.scale());
+    let line_height = v_metrics.ascent.abs() +
+                      v_metrics.descent.abs() +
+                      v_metrics.line_gap;
+
+    let mut offset = offset;
+    for line in lines {
+        img = render_line(img, &line, align, offset, &style);
+        offset.y += line_height;
+    }
+    img
+}
+
+
+/// Renders a line of text onto given image.
+///
+/// Text should be single-line (line breaks are ignored)
+/// and short enough to fit (or it will be clipped).
+pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
+                                       s: &str,
+                                       align: A, offset: Vector<f32>,
+                                       style: &Style) -> DynamicImage {
     let mut img = img;
     let align: Alignment = align.into();
     trace!("render_line(..., {:?}, {:?}, offset={:?}, {:?})",
@@ -110,7 +143,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
         img = DynamicImage::ImageRgba8(img.to_rgba());
     }
 
-    let scale = Scale::uniform(style.size);
+    let scale = style.scale();
     let v_metrics = style.font.v_metrics(scale);
 
     // Figure out where we're drawing.
@@ -126,15 +159,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     };
     let mut position = align.origin_within(image_rect) + offset;
     if align.horizontal != HAlign::Left {
-        // Compute text width as the final X position of the "caret"
-        // after laying out all the glyphs, starting from X=0.
-        let glyphs: Vec<_> = style.font.layout(s, scale, point(0.0, /* unused */ 0.0)).collect();
-        let width = glyphs.iter()
-            .rev()
-            .filter_map(|g| g.pixel_bounding_box().map(|bb| {
-                bb.min.x as f32 + g.unpositioned().h_metrics().advance_width
-            }))
-            .next().unwrap_or(0.0);
+        let width = text_width(s, &style);
         match align.horizontal {
             HAlign::Center => position.x -= width / 2.0,
             HAlign::Right => position.x -= width,
@@ -167,4 +192,57 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     }
 
     img
+}
+
+
+// Utility functions
+
+/// Break the text into lines, fitting given width.
+fn break_lines(s: &str, style: &Style, line_width: f32) -> Vec<String> {
+    // XXX: honor explicit line breaks
+    let words: Vec<&str> = s.split(|c: char| c.is_whitespace()).collect();
+    trace!("Computing line breaks for text of length {} with {} word(s)",
+        s.len(), words.len());
+
+    // TODO: handle different kinds of whitespace that may be separating words
+    let space_width = text_width(" ", style);
+
+    let mut result = vec![];
+
+    let mut current_line = String::new();
+    let mut current_width = 0.0;
+    for word in words {
+        let word_width = text_width(word, style);
+        if current_width + word_width + space_width > line_width {
+            // TODO: if the word itself is too long, break it wherever to fit
+            if !current_line.is_empty() {
+                result.push(current_line.clone());
+                current_line.clear();
+            }
+            current_width = 0.0;
+        }
+        current_line.push_str(word);
+        current_line.push(' ');
+        current_width += word_width + space_width;
+    }
+    if !current_line.is_empty() {
+        result.push(current_line);
+    }
+
+    result
+}
+
+/// Compute the pixel width of given text.
+fn text_width(s: &str, style: &Style) -> f32 {
+    // Compute text width as the final X position of the "caret"
+    // after laying out all the glyphs, starting from X=0.
+    let glyphs: Vec<_> = style.font
+        .layout(s, style.scale(), point(0.0, /* unused */ 0.0))
+        .collect();
+    glyphs.iter()
+        .rev()
+        .filter_map(|g| g.pixel_bounding_box().map(|bb| {
+            bb.min.x as f32 + g.unpositioned().h_metrics().advance_width
+        }))
+        .next().unwrap_or(0.0)
 }
