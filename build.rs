@@ -14,10 +14,9 @@ const REVISION_FILE: &'static str = "revision";
 
 
 fn main() {
-    // Obtain Git SHA to pass it further as an environment variable,
-    // so that it can be read in the binary code via env!() macro.
+    // Obtain Git SHA to pass it further to the crate code via ad-hoc file.
     let mut revision_file = {
-        // We cannot pass it as an env!() variable to the crate code,
+        // We cannot pass the SHA as an env!() variable to the crate code,
         // so the workaround is to write it to a file for include_str!().
         // Details: https://github.com/rust-lang/cargo/issues/2875
         let out_dir = env::var("OUT_DIR").unwrap();
