@@ -15,10 +15,10 @@ use futures::{BoxFuture, Future, future};
 use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
 use image::{self, DynamicImage, FilterType, GenericImage};
-use rusttype::{Font, vector};
+use rusttype::vector;
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
-use model::{Color, HAlign, ImageMacro, VAlign};
+use model::{Caption, HAlign, ImageMacro, VAlign};
 use resources::Cache;
 use self::text::Style;
 
@@ -217,65 +217,74 @@ impl CaptionTask {
         }
 
         for cap in &self.captions {
-            let font = self.cache.get_font(&cap.font)
-                .ok_or_else(|| CaptionError::Font(cap.font.clone()))?;
-            img = self.draw_single_text(
-                img, cap.halign, cap.valign, &*font, cap.color, &cap.text);
+            img = self.draw_single_caption(img, cap)?;
         }
 
         Ok(img)
     }
 
-    /// Draws a single text (top, middle, or bottom one).
+    /// Draws a single caption text.
     /// Returns a new image.
-    fn draw_single_text(&self, img: DynamicImage,
-                        halign: HAlign, valign: VAlign,
-                        font: &Font, color: Color, text: &str) -> DynamicImage {
+    fn draw_single_caption(&self, img: DynamicImage,
+                           caption: &Caption) -> Result<DynamicImage, CaptionError> {
         let mut img = img;
-        let alignment = (valign, halign);
-        debug!("Rendering {v}-{h} text: {text}", text=text,
-            v=format!("{:?}", valign).to_lowercase(), h=format!("{:?}", halign).to_lowercase());
+
+        if caption.text.is_empty() {
+            debug!("Empty caption text, skipping.");
+            return Ok(img);
+        }
+        debug!("Rendering {v}-{h} text: {text}", text=caption.text,
+            v=format!("{:?}", caption.valign).to_lowercase(),
+            h=format!("{:?}", caption.halign).to_lowercase());
+
+        trace!("Loading font `{}` from cache...", caption.font);
+        let font = self.cache.get_font(&caption.font)
+            .ok_or_else(|| CaptionError::Font(caption.font.clone()))?;
 
         // Make sure the vertical margin isn't too large by limiting it
         // to a small percentage of image height.
-        let max_vmargin: f32 = match valign {
+        let max_vmargin: f32 = match caption.valign {
             VAlign::Top => 16.0,
             VAlign::Middle => 0.0,
             VAlign::Bottom => -16.0,
         };
         let vmargin = max_vmargin.signum() * max_vmargin.abs().min(img.height() as f32 * 0.02);
-        trace!("Vertical text margin computed as {}", vmargin);
+        trace!("Vertical text margin (for VAlign::{:?}) computed as {}",
+            caption.valign, vmargin);
 
         // Similarly for the horizontal margin.
-        let max_hmargin: f32 = match halign {
+        let max_hmargin: f32 = match caption.halign {
             HAlign::Left => 12.0,
             HAlign::Center => 0.0,
             HAlign::Right => -12.0,
         };
         let hmargin = max_hmargin.signum() * max_hmargin.abs().min(img.width() as f32 * 0.02);
-        trace!("Horizontal text margin (for HAlign::{:?}) computed as {}", halign, hmargin);
+        trace!("Horizontal text margin (for HAlign::{:?}) computed as {}",
+            caption.halign, hmargin);
 
+        let alignment = (caption.halign, caption.valign);
         let offset = vector(hmargin, vmargin);
         let text_size = 64.0;
 
-        // Draw four black copies of the text, shifted in four diagonal directions,
+        // Draw four copies of the text, shifted in four diagonal directions,
         // to create the basis for an outline.
-        let outline_width = 1.0;
-        let outline_color = color.invert();
-        for &v in [vector(-outline_width, -outline_width),
-                   vector(outline_width, -outline_width),
-                   vector(outline_width, outline_width),
-                   vector(-outline_width, outline_width)].iter() {
-            let style = Style::new(&font, text_size, outline_color);
-            let offset = offset + v;
-            img = text::render_text(img, text, alignment, offset + v, style);
+        if let Some(outline_color) = caption.outline {
+            let outline_width = 1.0;
+            for &v in [vector(-outline_width, -outline_width),
+                       vector(outline_width, -outline_width),
+                       vector(outline_width, outline_width),
+                       vector(-outline_width, outline_width)].iter() {
+                let style = Style::new(&font, text_size, outline_color);
+                let offset = offset + v;
+                img = text::render_text(img, &caption.text, alignment, offset + v, style);
+            }
         }
 
         // Now render the white text in the original position.
-        let style = Style::new(&font, text_size, color);
-        img = text::render_text(img, text, alignment, offset, style);
+        let style = Style::new(&font, text_size, caption.color);
+        img = text::render_text(img, &caption.text, alignment, offset, style);
 
-        img
+        Ok(img)
     }
 
     /// Encode final result as PNG bytes.

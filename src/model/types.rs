@@ -4,7 +4,7 @@ use std::fmt;
 
 use image::{Rgb, Rgba};
 
-use super::constants::{DEFAULT_COLOR, DEFAULT_HALIGN, DEFAULT_FONT};
+use super::constants::{DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_HALIGN, DEFAULT_FONT};
 
 
 /// Describes an image macro. Used as an input structure.
@@ -23,8 +23,9 @@ pub struct Caption {
     pub text: String,
     pub halign: HAlign,
     pub valign: VAlign,
-    pub color: Color,
     pub font: String,  // TODO: this could be a Cow, but needs lifetime param
+    pub color: Color,
+    pub outline: Option<Color>,
 }
 
 /// Horizontal alignment of text within a rectangle.
@@ -44,7 +45,7 @@ pub enum VAlign {
 }
 
 /// RGB color of the text.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Color(pub u8, pub u8, pub u8);
 
 
@@ -69,7 +70,9 @@ impl fmt::Debug for ImageMacro {
         fmt_opt_field!(width);
         fmt_opt_field!(height);
 
-        ds.field("captions", &self.captions);
+        if self.captions.len() > 0 {
+            ds.field("captions", &self.captions);
+        }
 
         ds.finish()
     }
@@ -83,15 +86,21 @@ impl Caption {
             text: String::new(),
             halign: DEFAULT_HALIGN,
             valign: valign,
-            color: DEFAULT_COLOR,
             font: DEFAULT_FONT.into(),
+            color: DEFAULT_COLOR,
+            outline: Some(DEFAULT_OUTLINE_COLOR),
         }
     }
 }
 impl fmt::Debug for Caption {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{:?}{:?}{{{:?} {:?}}}({:?})",
-            self.valign, self.halign, self.font, self.color, self.text)
+        write!(fmt, "{valign:?}{halign:?}{{{font:?} {outline}[{color}]}}({text:?})",
+            text=self.text,
+            halign=self.halign,
+            valign=self.valign,
+            font=self.font,
+            color=self.color,
+            outline=self.outline.map(|o| format!("{}", o)).unwrap_or_else(String::new))
     }
 }
 
@@ -126,7 +135,7 @@ impl From<Color> for Rgb<u8> {
         color.to_rgb()
     }
 }
-impl fmt::Debug for Color {
+impl fmt::Display for Color {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let &Color(r, g, b) = self;
         write!(fmt, "#{:0>2x}{:0>2x}{:0>2x}", r, g, b)

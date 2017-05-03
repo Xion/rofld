@@ -9,7 +9,7 @@ use serde::de::{self, Deserialize, IntoDeserializer, Visitor};
 use unreachable::unreachable;
 
 use super::super::{Caption, ImageMacro, VAlign,
-                   DEFAULT_COLOR, DEFAULT_FONT, DEFAULT_HALIGN};
+                   DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN};
 
 
 const FIELDS: &'static [&'static str] = &[
@@ -67,10 +67,11 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 }
 
                 // Simplified way of defining top/middle/bottom captions.
-                "top_text"  | "middle_text"  | "bottom_text"  |
-                "top_align" | "middle_align" | "bottom_align" |
-                "top_color" | "middle_color" | "bottom_color" |
-                "top_font"  | "middle_font"  | "bottom_font" => {
+                "top_text"    | "middle_text"    | "bottom_text"    |
+                "top_align"   | "middle_align"   | "bottom_align"   |
+                "top_font"    | "middle_font"    | "bottom_font"    |
+                "top_color"   | "middle_color"   | "bottom_color"   |
+                "top_outline" | "middle_outline" | "bottom_outline" => {
                     let mut parts = key.split("_");
                     let (valign_part, field_part) = (parts.next().unwrap(),
                                                      parts.next().unwrap());
@@ -85,8 +86,9 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     match field_part {
                         "text" => caption.text = map.next_value()?,
                         "align" => caption.halign = map.next_value()?,
-                        "color" => caption.color = map.next_value()?,
                         "font" => caption.font = map.next_value()?,
+                        "color" => caption.color = map.next_value()?,
+                        "outline" => caption.outline = map.next_value()?,
                         _ => unsafe { unreachable(); },
                     }
                 }
@@ -194,8 +196,9 @@ impl<'de> Visitor<'de> for SourcedCaptionVisitor {
             text: text.to_owned(),
             halign: DEFAULT_HALIGN,
             valign: unsafe { mem::uninitialized() },
-            color: DEFAULT_COLOR,
             font: DEFAULT_FONT.into(),
+            color: DEFAULT_COLOR,
+            outline: Some(DEFAULT_OUTLINE_COLOR),
         };
         let result = SourcedCaption(CaptionSource::Text, caption);
         Ok(result)
