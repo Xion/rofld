@@ -216,11 +216,9 @@ impl CaptionTask {
             img = DynamicImage::ImageRgba8(img.to_rgba());
         }
 
-        trace!("Loading {} font from cache", self.font());
-        let font = self.cache.get_font(self.font())
-            .ok_or_else(|| CaptionError::Font(self.font().to_owned()))?;
-
         for cap in &self.captions {
+            let font = self.cache.get_font(&cap.font)
+                .ok_or_else(|| CaptionError::Font(cap.font.clone()))?;
             img = self.draw_single_text(
                 img, cap.halign, cap.valign, &*font, cap.color, &cap.text);
         }
@@ -235,15 +233,15 @@ impl CaptionTask {
                         font: &Font, color: Color, text: &str) -> DynamicImage {
         let mut img = img;
         let alignment = (valign, halign);
+        debug!("Rendering {v}-{h} text: {text}", text=text,
+            v=format!("{:?}", valign).to_lowercase(), h=format!("{:?}", halign).to_lowercase());
 
         // Make sure the vertical margin isn't too large by limiting it
         // to a small percentage of image height.
         let max_vmargin: f32 = match valign {
-            // TODO: change those log messages, they no longer apply
-            // when there can be arbitrary number of captions
-            VAlign::Top => { debug!("Rendering top text: {}", text); 16.0 },
-            VAlign::Middle => { debug!("Rendering middle text: {}", text); 0.0 },
-            VAlign::Bottom => { debug!("Rendering bottom text: {}", text); -16.0 },
+            VAlign::Top => 16.0,
+            VAlign::Middle => 0.0,
+            VAlign::Bottom => -16.0,
         };
         let vmargin = max_vmargin.signum() * max_vmargin.abs().min(img.height() as f32 * 0.02);
         trace!("Vertical text margin computed as {}", vmargin);

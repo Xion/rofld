@@ -5,9 +5,11 @@ use std::fmt;
 use std::mem;
 
 use itertools::Itertools;
-use serde::de::{self, Deserialize, Visitor};
+use serde::de::{self, Deserialize, IntoDeserializer, Visitor};
+use unreachable::unreachable;
 
-use super::super::{Caption, ImageMacro, VAlign, DEFAULT_COLOR, DEFAULT_HALIGN};
+use super::super::{Caption, ImageMacro, VAlign,
+                   DEFAULT_COLOR, DEFAULT_FONT, DEFAULT_HALIGN};
 
 
 const FIELDS: &'static [&'static str] = &[
@@ -37,7 +39,6 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         let mut template = None;
         let mut width = None;
         let mut height = None;
-        let mut font = None;
 
         let mut simple_captions: HashMap<VAlign, Caption> = HashMap::new();
         let mut full_captions: Option<Vec<Caption>> = None;
@@ -64,43 +65,30 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     }
                     height = Some(map.next_value()?);
                 }
-                "font" => {
-                    if font.is_some() {
-                        return Err(de::Error::duplicate_field("font"));
-                    }
-                    font = Some(map.next_value()?);
-                }
 
                 // Simplified way of defining top/middle/bottom captions.
-                "top_text" => {
-                    let mut caption = simple_captions.entry(VAlign::Top)
-                        .or_insert_with(Caption::default);
-                    caption.text = map.next_value()?;
-                }
-                "middle_text" => {
-                    let mut caption = simple_captions.entry(VAlign::Middle)
-                        .or_insert_with(Caption::default);
-                    caption.text = map.next_value()?;
-                }
-                "bottom_text" => {
-                    let mut caption = simple_captions.entry(VAlign::Bottom)
-                        .or_insert_with(Caption::default);
-                    caption.text = map.next_value()?;
-                }
-                "top_align" => {
-                    let mut caption = simple_captions.entry(VAlign::Top)
-                        .or_insert_with(Caption::default);
-                    caption.halign = map.next_value()?;
-                }
-                "middle_align" => {
-                    let mut caption = simple_captions.entry(VAlign::Middle)
-                        .or_insert_with(Caption::default);
-                    caption.halign = map.next_value()?;
-                }
-                "bottom_align" => {
-                    let mut caption = simple_captions.entry(VAlign::Bottom)
-                        .or_insert_with(Caption::default);
-                    caption.halign = map.next_value()?;
+                "top_text"  | "middle_text"  | "bottom_text"  |
+                "top_align" | "middle_align" | "bottom_align" |
+                "top_color" | "middle_color" | "bottom_color" |
+                "top_font"  | "middle_font"  | "bottom_font" => {
+                    let mut parts = key.split("_");
+                    let (valign_part, field_part) = (parts.next().unwrap(),
+                                                     parts.next().unwrap());
+
+                    // Put the horizontal align / text into the correct Caption.
+                    let valign_de =
+                        IntoDeserializer::<de::value::Error>::into_deserializer(valign_part);
+                    let valign = VAlign::deserialize(valign_de).unwrap();
+                    let mut caption = simple_captions.entry(valign)
+                        .or_insert_with(|| Caption::at(valign));
+
+                    match field_part {
+                        "text" => caption.text = map.next_value()?,
+                        "align" => caption.halign = map.next_value()?,
+                        "color" => caption.color = map.next_value()?,
+                        "font" => caption.font = map.next_value()?,
+                        _ => unsafe { unreachable(); },
+                    }
                 }
 
                 // Fully featured caption definition.
@@ -115,7 +103,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                             .map(|sc| (sc.0, sc.1)).collect();
                     if sourced_captions.iter().map(|&(s, _)| s).unique().count() > 1 {
                         return Err(de::Error::custom(
-                            "captions can must be either all texts, or all complete representations"));
+                            "captions must be either all texts, or all complete representations"));
                     }
 
                     if sourced_captions.is_empty() {
@@ -153,12 +141,10 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         let mut captions;
         if simple_captions.len() > 0 && full_captions.is_some() {
             return Err(de::Error::custom(
-                "`captions` cannot be provided along with `top/middle/bottom_text/align`"))
+                "`captions` cannot be provided along with `top/middle/bottom_text/align/font`"))
         }
         if simple_captions.len() > 0 {
-            captions = simple_captions.into_iter()
-                .map(|(valign, caption)| Caption{valign: valign, ..caption})
-                .collect();
+            captions = simple_captions.into_iter().map(|(_, c)| c).collect()
         } else {
             captions = full_captions.unwrap_or_else(|| vec![]);
         }
@@ -169,7 +155,6 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
             template: template,
             width: width,
             height: height,
-            font: font,
             captions: captions,
         })
     }
@@ -210,6 +195,7 @@ impl<'de> Visitor<'de> for SourcedCaptionVisitor {
             halign: DEFAULT_HALIGN,
             valign: unsafe { mem::uninitialized() },
             color: DEFAULT_COLOR,
+            font: DEFAULT_FONT.into(),
         };
         let result = SourcedCaption(CaptionSource::Text, caption);
         Ok(result)

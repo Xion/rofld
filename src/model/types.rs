@@ -13,20 +13,18 @@ pub struct ImageMacro {
     pub template: String,
     pub width: Option<u32>,
     pub height: Option<u32>,
-
-    pub font: Option<String>,
     pub captions: Vec<Caption>,
 }
 
 /// Describes a single piece of text rendered on the image macro.
 #[derive(Clone, PartialEq)]
 pub struct Caption {
-    // TODO: allow to customize font on per-caption basis
     // TODO: outline color
     pub text: String,
     pub halign: HAlign,
     pub valign: VAlign,
     pub color: Color,
+    pub font: String,  // TODO: this could be a Cow, but needs lifetime param
 }
 
 /// Horizontal alignment of text within a rectangle.
@@ -46,7 +44,7 @@ pub enum VAlign {
 }
 
 /// RGB color of the text.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Color(pub u8, pub u8, pub u8);
 
 
@@ -54,11 +52,6 @@ impl ImageMacro {
     #[inline]
     pub fn has_text(&self) -> bool {
         self.captions.len() > 0 && self.captions.iter().any(|c| !c.text.is_empty())
-    }
-
-    #[inline]
-    pub fn font(&self) -> &str {
-        self.font.as_ref().map(|s| s.as_str()).unwrap_or(DEFAULT_FONT)
     }
 }
 impl fmt::Debug for ImageMacro {
@@ -75,7 +68,6 @@ impl fmt::Debug for ImageMacro {
         }
         fmt_opt_field!(width);
         fmt_opt_field!(height);
-        fmt_opt_field!(font);
 
         ds.field("captions", &self.captions);
 
@@ -83,19 +75,23 @@ impl fmt::Debug for ImageMacro {
     }
 }
 
-impl Default for Caption {
-    fn default() -> Self {
+impl Caption {
+    /// Create an empty Caption at the particular vertical alignment.
+    #[inline]
+    pub fn at(valign: VAlign) -> Self {
         Caption{
             text: String::new(),
             halign: DEFAULT_HALIGN,
-            valign: VAlign::Bottom,  // arbitrary
+            valign: valign,
             color: DEFAULT_COLOR,
+            font: DEFAULT_FONT.into(),
         }
     }
 }
 impl fmt::Debug for Caption {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{:?}{:?}({:?})", self.valign, self.halign, self.text)
+        write!(fmt, "{:?}{:?}{{{:?} {:?}}}({:?})",
+            self.valign, self.halign, self.font, self.color, self.text)
     }
 }
 
@@ -128,5 +124,11 @@ impl From<Color> for Rgb<u8> {
     #[inline]
     fn from(color: Color) -> Rgb<u8> {
         color.to_rgb()
+    }
+}
+impl fmt::Debug for Color {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let &Color(r, g, b) = self;
+        write!(fmt, "#{:0>2x}{:0>2x}{:0>2x}", r, g, b)
     }
 }

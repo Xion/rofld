@@ -4,7 +4,7 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Visitor};
 
-use super::super::{Caption, DEFAULT_HALIGN, DEFAULT_COLOR};
+use super::super::{Caption, DEFAULT_FONT, DEFAULT_HALIGN, DEFAULT_COLOR};
 
 
 const FIELDS: &'static [&'static str] = &["text", "align", "valign", "color"];
@@ -33,6 +33,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let mut halign = None;
         let mut valign = None;
         let mut color = None;
+        let mut font = None;
 
         while let Some(key) = map.next_key::<String>()? {
             let key = key.trim().to_lowercase();
@@ -61,6 +62,12 @@ impl<'de> Visitor<'de> for CaptionVisitor {
                     }
                     color = Some(map.next_value()?)
                 }
+                "font" => {
+                    if font.is_some() {
+                        return Err(de::Error::duplicate_field("font"));
+                    }
+                    font = Some(map.next_value()?)
+                }
                 key => return Err(de::Error::unknown_field(key, FIELDS)),
             }
         }
@@ -69,11 +76,13 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let halign = halign.unwrap_or(DEFAULT_HALIGN);
         let valign = valign.ok_or_else(|| de::Error::missing_field("valign"))?;
         let color = color.unwrap_or(DEFAULT_COLOR);
+        let font = font.unwrap_or(DEFAULT_FONT).into();
         Ok(Caption{
             text: text,
             halign: halign,
             valign: valign,
             color: color,
+            font: font,
         })
     }
 }
