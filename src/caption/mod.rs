@@ -39,12 +39,9 @@ impl Captioner {
         let cache = Arc::new(Cache::new());
         let timer = Timer::default();
 
-        Captioner{
-            pool: pool,
-            cache: cache,
-            timer: timer,
-            task_timeout: Atomic::new(Duration::from_secs(0)),
-        }
+        let task_timeout = Atomic::new(Duration::from_secs(0));
+
+        Captioner{pool, cache, timer, task_timeout}
     }
 
     #[inline]

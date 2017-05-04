@@ -91,14 +91,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let color = color.unwrap_or(DEFAULT_COLOR);
         let outline = outline.unwrap_or_else(|| Some(color.invert()));
 
-        Ok(Caption{
-            text: text,
-            halign: halign,
-            valign: valign,
-            font: font,
-            color: color,
-            outline: outline,
-        })
+        Ok(Caption{text, halign, valign, font, color, outline})
     }
 }
 

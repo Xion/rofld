@@ -153,12 +153,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         captions.sort_by_key(|c| (c.valign, c.halign));
 
         let template = template.ok_or_else(|| de::Error::missing_field("template"))?;
-        Ok(ImageMacro{
-            template: template,
-            width: width,
-            height: height,
-            captions: captions,
-        })
+        Ok(ImageMacro{template, width, height, captions})
     }
 }
 

@@ -9,8 +9,6 @@ repository = "https://github.com/Xion/rofld"
 readme = "README.md"
 license = "GPLv2"
 
-build = "build.rs"
-
 [dependencies]
 ansi_term = "0.9"
 atomic = "0.3"

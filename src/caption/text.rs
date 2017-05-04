@@ -77,7 +77,7 @@ impl<'f> Style<'f> {
         if size <= 0.0 {
             panic!("text::Style got negative size ({})", size);
         }
-        Style{font: font, size: size, color: color}
+        Style{font, size, color}
     }
 
     #[inline]
