@@ -5,7 +5,8 @@ use std::ops::{Add, Div, Sub};
 
 use image::{DynamicImage, GenericImage};
 use num::One;
-use rusttype::{Font, point, Point, Rect, Scale, Vector};
+use regex::Regex;
+use rusttype::{Font, point, Point, Rect, Scale};
 use unreachable::unreachable;
 
 use model::{Color, HAlign, VAlign};
@@ -100,26 +101,38 @@ impl<'f> fmt::Debug for Style<'f> {
 /// Renders text onto given image.
 pub fn render_text<A: Into<Alignment>>(img: DynamicImage,
                                        s: &str,
-                                       align: A, offset: Vector<f32>,
+                                       align: A, rect: Rect<f32>,
                                        style: Style) -> DynamicImage {
     let mut img = img;
     let align: Alignment = align.into();
-    trace!("render_text(..., <length: {}>, {:?}, offset={:?}, {:?})",
-        s.len(), align, offset, style);
+    trace!("render_text(..., <length: {}>, {:?}, {:?}, {:?})",
+        s.len(), align, rect, style);
 
-    let line_width = img.width() as f32 - offset.x;
-    let lines = break_lines(s, &style, line_width);
+    let mut lines = break_lines(s, &style, rect.width());
     trace!("Text broken into {} line(s)", lines.len());
 
     let v_metrics = style.font.v_metrics(style.scale());
-    let line_height = v_metrics.ascent.abs() +
-                      v_metrics.descent.abs() +
-                      v_metrics.line_gap;
+    let line_height = v_metrics.ascent + v_metrics.line_gap;
 
-    let mut offset = offset;
+    // TODO: do we need some adjustment for VAlign::Middle, too?
+    if align.vertical == VAlign::Bottom {
+        lines.reverse();
+    }
+
+    let mut rect = rect;
     for line in lines {
-        img = render_line(img, &line, align, offset, &style);
-        offset.y += line_height;
+        img = render_line(img, &line, align, rect, &style);
+
+        // After rendering the line, shrink the rectangle by subtracting
+        // line_height from its height in a way that plays well with vertical alignment.
+        match align.vertical {
+            VAlign::Top => rect.min.y += line_height,
+            VAlign::Middle => {
+                rect.min.y += line_height / 2.0;
+                rect.max.y -= line_height / 2.0;
+            }
+            VAlign::Bottom => rect.max.y -= line_height,
+        }
     }
     img
 }
@@ -131,12 +144,12 @@ pub fn render_text<A: Into<Alignment>>(img: DynamicImage,
 /// and short enough to fit (or it will be clipped).
 pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
                                        s: &str,
-                                       align: A, offset: Vector<f32>,
+                                       align: A, rect: Rect<f32>,
                                        style: &Style) -> DynamicImage {
     let mut img = img;
     let align: Alignment = align.into();
-    trace!("render_line(..., {:?}, {:?}, offset={:?}, {:?})",
-        s, align, offset, style);
+    trace!("render_line(..., {:?}, {:?}, {:?}, {:?})",
+        s, align, rect, style);
 
     // Rendering text requires alpha blending.
     if img.as_rgba8().is_none() {
@@ -152,12 +165,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     // we need to compute the final bounds of the text first,
     // so that we can account for it when computing the start position.
     //
-    let (x, y, width, height) = img.bounds();
-    let image_rect: Rect<f32> = Rect{
-        min: point(x as f32, y as f32),
-        max: point((x + width) as f32, (y + height) as f32),
-    };
-    let mut position = align.origin_within(image_rect) + offset;
+    let mut position = align.origin_within(rect);
     if align.horizontal != HAlign::Left {
         let width = text_width(s, &style);
         match align.horizontal {
@@ -178,6 +186,7 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     }
 
     // Now we can draw the text.
+    let (_, _, width, height) = img.bounds();
     for glyph in style.font.layout(s, scale, position) {
         if let Some(bbox) = glyph.pixel_bounding_box() {
             glyph.draw(|x, y, v| {
@@ -199,31 +208,101 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
 
 /// Break the text into lines, fitting given width.
 fn break_lines(s: &str, style: &Style, line_width: f32) -> Vec<String> {
-    // XXX: honor explicit line breaks
-    let words: Vec<&str> = s.split(|c: char| c.is_whitespace()).collect();
-    trace!("Computing line breaks for text of length {} with {} word(s)",
-        s.len(), words.len());
+    s.lines()
+        .flat_map(|line| break_single_line(line, style, line_width))
+        .collect()
+}
 
-    // TODO: handle different kinds of whitespace that may be separating words
-    let space_width = text_width(" ", style);
+/// Break a single line into multiple lines.
+/// The line should not contain explicit line breaks.
+fn break_single_line(s: &str, style: &Style, line_width: f32) -> Vec<String> {
+    lazy_static! {
+        static ref WORD_BOUNDARY: Regex = Regex::new(r"\b").unwrap();
+    }
+
+    let segments: Vec<&str> = WORD_BOUNDARY.split(s).filter(|s| !s.is_empty()).collect();
+    let is_word = |s: &str| s.chars().all(|c| !c.is_whitespace());
+    trace!("Computing line breaks for text of length {} with {} word(s) and {} gap(s)",
+        s.len(),
+        segments.iter().map(|s| is_word(s)).count(),
+        segments.iter().map(|s| !is_word(s)).count());
 
     let mut result = vec![];
 
     let mut current_line = String::new();
     let mut current_width = 0.0;
-    for word in words {
-        let word_width = text_width(word, style);
-        if current_width + word_width + space_width > line_width {
-            // TODO: if the word itself is too long, break it wherever to fit
-            if !current_line.is_empty() {
-                result.push(current_line.clone());
-                current_line.clear();
-            }
-            current_width = 0.0;
+    for segment in segments {
+        let mut segment_width = text_width(segment, style);
+
+        // Simplest case is when the segment trivially fits within the line.
+        if current_width + segment_width < line_width {
+            current_line.push_str(segment);
+            current_width += segment_width;
+            continue;
         }
-        current_line.push_str(word);
-        current_line.push(' ');
-        current_width += word_width + space_width;
+
+        // If the segment doesn't fit, but it is not longer than the line by itself,
+        // break the current line before it & put the segment in the next one.
+        if segment_width < line_width {
+            if !current_line.is_empty() {
+                result.push(current_line);
+            }
+            // If the overflowing segment is just a single space,
+            // then just forget about it completely.
+            // That space is adequately represented by the line break itself.
+            if segment == " " {
+                current_line = String::new();
+                current_width = 0.0;
+            } else {
+                current_line = segment.to_owned();
+                current_width = segment_width;
+            }
+            continue;
+        }
+
+        // The worst case scenario is that the segment itself is longer than the line.
+        // In this case, we have to break it up (possibly multiple times).
+        let mut segment = segment.to_owned();
+        loop {
+            // Break it at the earliest possible spot by shaving off characters
+            // from the end. Remember what part of the segment shall carry over
+            // to the next line, too.
+            let mut carryover: Vec<char> = vec![];
+            let mut carryover_width = 0.0;
+            while current_width + segment_width > line_width {
+                match segment.pop() {
+                    Some(c) => {
+                        carryover.push(c);
+                        let ch_width = char_width(c, style);
+                        segment_width -= ch_width;
+                        carryover_width += ch_width;
+                    },
+                    None => {
+                        // segment_width = 0.0;
+                        break;
+                    },
+                }
+            }
+
+            // What remains here will fit within the current line now,
+            // so we just add it there.
+            // And if there is nothing to carry over, we're done.
+            current_line.push_str(&segment);
+            current_width += segment_width;
+            if carryover.is_empty() {
+                break;
+            }
+
+            // Otherwise, we need to start a new line for the carryover part...
+            result.push(current_line);
+            current_line = String::new();
+            current_width = 0.0;
+
+            // ...which now also becomes the new segment part,
+            // to break up in the identical way.
+            segment = carryover.into_iter().rev().collect();
+            segment_width = carryover_width;
+        }
     }
     if !current_line.is_empty() {
         result.push(current_line);
@@ -245,4 +324,13 @@ fn text_width(s: &str, style: &Style) -> f32 {
             bb.min.x as f32 + g.unpositioned().h_metrics().advance_width
         }))
         .next().unwrap_or(0.0)
+}
+
+/// Compute the pixel width of given character.
+fn char_width(c: char, style: &Style) -> f32 {
+    // This isn't just text_width() call for a 1-char string,
+    // because the result would include a bounding box shift used for kerning.
+    style.font.glyph(c)
+        .map(|g| g.scaled(style.scale()).h_metrics().advance_width)
+        .unwrap_or(0.0)
 }

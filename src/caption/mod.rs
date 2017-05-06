@@ -15,10 +15,10 @@ use futures::{BoxFuture, Future, future};
 use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
 use image::{self, DynamicImage, FilterType, GenericImage};
-use rusttype::vector;
+use rusttype::{point, Rect, vector};
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
-use model::{Caption, HAlign, ImageMacro, VAlign};
+use model::{Caption, ImageMacro};
 use resources::Cache;
 use self::text::Style;
 
@@ -238,48 +238,50 @@ impl CaptionTask {
         let font = self.cache.get_font(&caption.font)
             .ok_or_else(|| CaptionError::Font(caption.font.clone()))?;
 
+        let (_, _, width, height) = img.bounds();
+        let width = width as f32;
+        let height = height as f32;
+
         // Make sure the vertical margin isn't too large by limiting it
         // to a small percentage of image height.
-        let max_vmargin: f32 = match caption.valign {
-            VAlign::Top => 16.0,
-            VAlign::Middle => 0.0,
-            VAlign::Bottom => -16.0,
-        };
-        let vmargin = max_vmargin.signum() * max_vmargin.abs().min(img.height() as f32 * 0.02);
-        trace!("Vertical text margin (for VAlign::{:?}) computed as {}",
-            caption.valign, vmargin);
+        let max_vmargin: f32 = 16.0;
+        let vmargin = max_vmargin.signum() * max_vmargin.abs().min(height * 0.02);
+        trace!("Vertical text margin computed as {}", vmargin);
 
         // Similarly for the horizontal margin.
-        let max_hmargin: f32 = match caption.halign {
-            HAlign::Left => 12.0,
-            HAlign::Center => 0.0,
-            HAlign::Right => -12.0,
+        let max_hmargin: f32 = 16.0;
+        let hmargin = max_hmargin.signum() * max_hmargin.abs().min(height * 0.02);
+        trace!("Horizontal text margin computed as {}", hmargin);
+
+        let margin_vector = vector(hmargin, vmargin);
+        let rect: Rect<f32> = Rect{
+            min: point(0.0, 0.0) + margin_vector,
+            max: point(width, height) - margin_vector,
         };
-        let hmargin = max_hmargin.signum() * max_hmargin.abs().min(img.width() as f32 * 0.02);
-        trace!("Horizontal text margin (for HAlign::{:?}) computed as {}",
-            caption.halign, hmargin);
 
         let alignment = (caption.halign, caption.valign);
-        let offset = vector(hmargin, vmargin);
+
+        // TODO: either make this an ImageMacro parameter,
+        // or allow to choose between Wrap and Shrink methods of text fitting
         let text_size = 64.0;
 
         // Draw four copies of the text, shifted in four diagonal directions,
         // to create the basis for an outline.
         if let Some(outline_color) = caption.outline {
-            let outline_width = 1.0;
+            let outline_width = 2.0;
             for &v in [vector(-outline_width, -outline_width),
                        vector(outline_width, -outline_width),
                        vector(outline_width, outline_width),
                        vector(-outline_width, outline_width)].iter() {
                 let style = Style::new(&font, text_size, outline_color);
-                let offset = offset + v;
-                img = text::render_text(img, &caption.text, alignment, offset + v, style);
+                let rect = Rect{min: rect.min + v, max: rect.max + v};
+                img = text::render_text(img, &caption.text, alignment, rect, style);
             }
         }
 
         // Now render the white text in the original position.
         let style = Style::new(&font, text_size, caption.color);
-        img = text::render_text(img, &caption.text, alignment, offset, style);
+        img = text::render_text(img, &caption.text, alignment, rect, style);
 
         Ok(img)
     }

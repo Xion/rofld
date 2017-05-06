@@ -22,6 +22,7 @@
 #[macro_use] extern crate mime;
              extern crate nix;
              extern crate num;
+             extern crate regex;
              extern crate rusttype;
              extern crate serde;
 #[macro_use] extern crate serde_json;
