@@ -186,14 +186,13 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     }
 
     // Now we can draw the text.
-    let (_, _, width, height) = img.bounds();
     for glyph in style.font.layout(s, scale, position) {
         if let Some(bbox) = glyph.pixel_bounding_box() {
             glyph.draw(|x, y, v| {
                 let x = (bbox.min.x + x as i32) as u32;
                 let y = (bbox.min.y + y as i32) as u32;
                 let alpha = (v * 255f32) as u8;
-                if x < width && y < height {
+                if img.in_bounds(x, y) {
                     img.blend_pixel(x, y, style.color.to_rgba(alpha));
                 }
             });
@@ -278,7 +277,7 @@ fn break_single_line(s: &str, style: &Style, line_width: f32) -> Vec<String> {
                         carryover_width += ch_width;
                     },
                     None => {
-                        // segment_width = 0.0;
+                        segment_width = 0.0;
                         break;
                     },
                 }

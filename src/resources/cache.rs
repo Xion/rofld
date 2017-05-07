@@ -3,11 +3,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use image::DynamicImage;
 use lru_cache::LruCache;
 use rusttype::Font;
 
-use super::{fonts, templates};
+use super::fonts;
+use super::templates::{self, Template};
 
 
 const DEFAULT_TEMPLATE_CAPACITY: usize = 128;
@@ -17,7 +17,7 @@ const DEFAULT_FONT_CAPACITY: usize = 16;
 /// Cache for data used in rendering of image macros.
 /// The cache is designed to be thread-safe.
 pub struct Cache {
-    templates: Mutex<LruCache<String, Arc<DynamicImage>>>,
+    templates: Mutex<LruCache<String, Arc<Template>>>,
     fonts: Mutex<LruCache<String, Arc<Font<'static>>>>,
 }
 unsafe impl Sync for Cache {}
@@ -53,7 +53,7 @@ impl Cache {
 impl Cache {
     /// Get the image for a template of given name.
     /// If it doesn't exist in the cache, it will be loaded & cached.
-    pub fn get_template(&self, name: &str) -> Option<Arc<DynamicImage>> {
+    pub fn get_template(&self, name: &str) -> Option<Arc<Template>> {
         // Try to hit the cache quickly first.
         {
             let mut tmpl_cache = self.templates.lock()
@@ -66,12 +66,12 @@ impl Cache {
         debug!("Cache miss for template `{}`", name);
 
         // Load the image template outside of the critical section.
-        if let Some(img) = templates::load(name) {
-            let img = Arc::new(img);
+        if let Some(tmpl) = templates::load(name) {
+            let tmpl = Arc::new(tmpl);
             self.templates.lock().expect("Cache::templates lock poisoned")
-                .insert(name.to_owned(), img.clone());
+                .insert(name.to_owned(), tmpl.clone());
             trace!("Template `{}` cached", name);
-            return Some(img);
+            return Some(tmpl);
         }
 
         None

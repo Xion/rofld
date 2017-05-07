@@ -1,10 +1,38 @@
 //! Module handling image macro templates.
 
 use std::env;
+use std::fmt;
 use std::path::PathBuf;
 
 use glob;
-use image;
+use image::{self, GenericImage};
+
+
+custom_derive! {
+    /// Represents an image macro template.
+    #[derive(Clone, EnumFromInner)]
+    pub enum Template {
+        Image(image::DynamicImage),
+        // TODO: add animated GIFs
+    }
+}
+impl Template {
+    pub fn into_images(self) -> Vec<image::DynamicImage> {
+        match self {
+            Template::Image(img) => vec![img],
+        }
+    }
+}
+impl fmt::Debug for Template {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Template::Image(ref img) => {
+                let (width, height) = img.dimensions();
+                write!(fmt, "Template::Image({}x{})", width, height)
+            }
+        }
+    }
+}
 
 
 lazy_static! {
@@ -13,8 +41,8 @@ lazy_static! {
 }
 
 
-/// Load template image.
-pub fn load(template: &str) -> Option<image::DynamicImage> {
+/// Load an image macro template.
+pub fn load(template: &str) -> Option<Template> {
     debug!("Loading image macro template `{}`", template);
 
     let template_glob = &format!(
@@ -32,7 +60,7 @@ pub fn load(template: &str) -> Option<image::DynamicImage> {
     match image::open(&template_path) {
         Ok(i) => {
             debug!("Template `{}` opened successfully", template);
-            Some(i)
+            Some(i.into())
         },
         Err(e) => {
             error!("Failed to open template image file {}: {}",

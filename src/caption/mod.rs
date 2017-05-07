@@ -170,8 +170,11 @@ impl CaptionTask {
 
         let template = self.cache.get_template(&self.template)
             .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
+        let template = (*template).clone();  // clone the underlying image(s)
 
-        let mut img = self.resize_template(template);
+        // TODO: handle multiple images in a template when it's an animated GIF
+        let mut img = self.resize_template(
+            template.into_images().into_iter().next().unwrap());
         if self.has_text() {
             img = self.draw_texts(img)?;
         }
@@ -179,7 +182,7 @@ impl CaptionTask {
     }
 
     /// Resize template image to fit the desired dimensions.
-    fn resize_template(&self, template: Arc<DynamicImage>) -> DynamicImage {
+    fn resize_template(&self, template: DynamicImage) -> DynamicImage {
         // Note that resizing preserves original aspect, so the final image
         // may be smaller than requested.
         let (orig_width, orig_height) = template.dimensions();
@@ -195,7 +198,7 @@ impl CaptionTask {
             img = template.resize(target_width, target_height, FilterType::Lanczos3);
         } else {
             debug!("Using original template size of {}x{}", orig_width, orig_height);
-            img = (*template).clone();  // clone the actual image
+            img = template;
         }
 
         let (width, height) = img.dimensions();
@@ -238,7 +241,7 @@ impl CaptionTask {
         let font = self.cache.get_font(&caption.font)
             .ok_or_else(|| CaptionError::Font(caption.font.clone()))?;
 
-        let (_, _, width, height) = img.bounds();
+        let (width, height) = img.dimensions();
         let width = width as f32;
         let height = height as f32;
 

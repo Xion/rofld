@@ -17,7 +17,7 @@ impl<'de> Deserialize<'de> for Color {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>
     {
-        deserializer.deserialize_tuple_struct("Color", 3, ColorVisitor)
+        deserializer.deserialize_tuple_struct("Color", FIELDS.len(), ColorVisitor)
     }
 }
 
@@ -40,13 +40,14 @@ impl<'de> Visitor<'de> for ColorVisitor {
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
         where A: de::SeqAccess<'de>
     {
-        let mut channels = Vec::with_capacity(3);
+        let mut channels = Vec::with_capacity(FIELDS.len());
         while let Some(elem) = seq.next_element::<u8>()? {
             channels.push(elem);
         }
 
-        if channels.len() != 3 {
-            return Err(de::Error::invalid_length(channels.len(), &self));
+        if channels.len() != FIELDS.len() {
+            return Err(de::Error::invalid_length(
+                channels.len(), &(&format!("{}", FIELDS.len()) as &str)));
         }
         let mut result = channels.into_iter();
         Ok(Color(result.next().unwrap(),

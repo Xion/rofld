@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use serde::de::{self, Deserialize, Visitor};
+use serde::de::{self, Deserialize, Visitor, Unexpected};
 
 use super::super::{Caption, DEFAULT_FONT, DEFAULT_HALIGN, DEFAULT_COLOR};
 
@@ -45,7 +45,12 @@ impl<'de> Visitor<'de> for CaptionVisitor {
                     if text.is_some() {
                         return Err(de::Error::duplicate_field("text"));
                     }
-                    text = Some(map.next_value()?);
+                    let value: String = map.next_value()?;
+                    if value.is_empty() {
+                        return Err(de::Error::invalid_value(
+                            Unexpected::Str(&value), &"non-empty string"));
+                    }
+                    text = Some(value);
                 }
                 "align" | "halign" => {
                     if halign.is_some() {
@@ -101,6 +106,17 @@ mod tests {
     use serde_json::from_value as from_json;
     use spectral::prelude::*;
     use ::model::{Color, Caption, DEFAULT_COLOR};
+
+    #[test]
+    fn required_fields() {
+        assert_that!(from_json::<Caption>(json!({"text": "Test"})))
+            .is_err().matches(|e| format!("{}", e).contains("valign"));
+        assert_that!(from_json::<Caption>(json!({"halign": "left", "valign": "top"})))
+            .is_err().matches(|e| format!("{}", e).contains("text"));
+        // Text cannot be empty.
+        assert_that!(from_json::<Caption>(json!({"text": "", "valign": "center"})))
+            .is_err().matches(|e| format!("{}", e).contains("non-empty string"));
+    }
 
     #[test]
     fn default_outline() {

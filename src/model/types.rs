@@ -19,7 +19,6 @@ pub struct ImageMacro {
 /// Describes a single piece of text rendered on the image macro.
 #[derive(Clone, PartialEq)]
 pub struct Caption {
-    // TODO: outline color
     pub text: String,
     pub halign: HAlign,
     pub valign: VAlign,

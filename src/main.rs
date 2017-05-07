@@ -8,6 +8,7 @@
              extern crate conv;
              extern crate css_color_parser;
 #[macro_use] extern crate custom_derive;
+#[macro_use] extern crate enum_derive;
 #[macro_use] extern crate error_derive;
              extern crate futures;
              extern crate futures_cpupool;
@@ -102,6 +103,10 @@ fn main() {
     if let Some(pid) = get_process_id() {
         debug!("PID = {}", pid);
     }
+    if cfg!(debug_assertions) {
+        warn!("Debug mode! The program will likely be much slower.");
+    }
+
     for (i, arg) in env::args().enumerate() {
         trace!("argv[{}] = {:?}", i, arg);
     }

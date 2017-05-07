@@ -1,6 +1,6 @@
 //! Deserializer for the ImageMacro type.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::mem;
 
@@ -40,7 +40,9 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         let mut width = None;
         let mut height = None;
 
+        let mut simple_fields = HashSet::new();
         let mut simple_captions: HashMap<VAlign, Caption> = HashMap::new();
+
         let mut full_captions: Option<Vec<Caption>> = None;
 
         while let Some(key) = map.next_key::<String>()? {
@@ -72,6 +74,11 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 "top_font"    | "middle_font"    | "bottom_font"    |
                 "top_color"   | "middle_color"   | "bottom_color"   |
                 "top_outline" | "middle_outline" | "bottom_outline" => {
+                    if simple_fields.contains(&key) {
+                        return Err(de::Error::custom(format_args!("duplicate field `{}`", key)));
+                    }
+                    simple_fields.insert(key.clone());
+
                     let mut parts = key.split("_");
                     let (valign_part, field_part) = (parts.next().unwrap(),
                                                      parts.next().unwrap());
@@ -102,7 +109,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     // Deserialize captions, remembering which kind of input source they came from.
                     let sourced_captions: Vec<(CaptionSource, Caption)> =
                         map.next_value::<Vec<SourcedCaption>>()?.into_iter()
-                            .map(|sc| (sc.0, sc.1)).collect();
+                            .map(From::from).collect();
                     if sourced_captions.iter().map(|&(s, _)| s).unique().count() > 1 {
                         return Err(de::Error::custom(
                             "captions must be either all texts, or all complete representations"));
@@ -165,6 +172,11 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
 enum CaptionSource { Text, Map }
 struct SourcedCaption(CaptionSource, Caption);
 
+impl From<SourcedCaption> for (CaptionSource, Caption) {
+    fn from(sc: SourcedCaption) -> Self {
+        (sc.0, sc.1)
+    }
+}
 impl<'de> Deserialize<'de> for SourcedCaption {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>
