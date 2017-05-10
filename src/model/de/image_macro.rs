@@ -9,11 +9,12 @@ use serde::de::{self, Deserialize, IntoDeserializer, Visitor};
 use unreachable::unreachable;
 
 use super::super::{Caption, ImageMacro, VAlign,
-                   DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN};
+                   DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN,
+                   MAX_CAPTION_COUNT};
 
 
 const FIELDS: &'static [&'static str] = &[
-    "template", "width", "height", "font", "captions",
+    "template", "width", "height", "captions",
 ];
 
 
@@ -74,7 +75,9 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 "top_font"    | "middle_font"    | "bottom_font"    |
                 "top_color"   | "middle_color"   | "bottom_color"   |
                 "top_outline" | "middle_outline" | "bottom_outline" => {
-                    if simple_fields.contains(&key) {
+                    let is_duplicate = simple_fields.contains(&key) || (
+                        key.ends_with("_font") && simple_fields.contains("font"));
+                    if is_duplicate {
                         return Err(de::Error::custom(format_args!("duplicate field `{}`", key)));
                     }
                     simple_fields.insert(key.clone());
@@ -97,6 +100,24 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         "color" => caption.color = map.next_value()?,
                         "outline" => caption.outline = map.next_value()?,
                         _ => unsafe { unreachable(); },
+                    }
+                }
+
+                // Wholesale setting of simple captions' properties.
+                // TODO: color & outline
+                "font" => {
+                    let is_duplicate = simple_fields.contains(&key) ||
+                        simple_fields.iter().any(|f| f.ends_with("_font"));
+                    if is_duplicate {
+                        return Err(de::Error::duplicate_field("font"));
+                    }
+                    simple_fields.insert("font".into());
+
+                    let font: String = map.next_value()?;
+                    for valign in VAlign::iter_variants() {
+                        let mut caption = simple_captions.entry(valign)
+                            .or_insert_with(|| Caption::at(valign));
+                        caption.font = font.clone();
                     }
                 }
 
@@ -137,7 +158,12 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                             .map(|(v, c)| Caption { valign: v, ..c })
                             .collect());
                     } else {
-                        full_captions = Some(captions.collect());
+                        let captions: Vec<_> = captions.collect();
+                        if captions.len() > MAX_CAPTION_COUNT {
+                            return Err(de::Error::custom(
+                                format_args!("there can be at most {} captions", MAX_CAPTION_COUNT)));
+                        }
+                        full_captions = Some(captions);
                     }
                 }
 
@@ -153,7 +179,9 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 "`captions` cannot be provided along with `top/middle/bottom_text/align/font`"))
         }
         if simple_captions.len() > 0 {
-            captions = simple_captions.into_iter().map(|(_, c)| c).collect()
+            captions = simple_captions.into_iter()
+                .map(|(_, c)| c).filter(|c| !c.text.is_empty())
+                .collect()
         } else {
             captions = full_captions.unwrap_or_else(|| vec![]);
         }

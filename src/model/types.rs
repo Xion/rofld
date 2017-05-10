@@ -8,7 +8,7 @@ use super::constants::{DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_HALIGN, DEF
 
 
 /// Describes an image macro. Used as an input structure.
-#[derive(PartialEq)]
+#[derive(Default)]
 pub struct ImageMacro {
     pub template: String,
     pub width: Option<u32>,
@@ -27,20 +27,26 @@ pub struct Caption {
     pub outline: Option<Color>,
 }
 
-/// Horizontal alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum HAlign {
-    Left,
-    Center,
-    Right,
+custom_derive! {
+    /// Horizontal alignment of text within a rectangle.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+             IterVariants(HAligns))]
+    pub enum HAlign {
+        Left,
+        Center,
+        Right,
+    }
 }
 
-/// Vertical alignment of text within a rectangle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum VAlign {
-    Top,
-    Middle,
-    Bottom,
+custom_derive! {
+    /// Vertical alignment of text within a rectangle.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+             IterVariants(VAligns))]
+    pub enum VAlign {
+        Top,
+        Middle,
+        Bottom,
+    }
 }
 
 /// RGB color of the text.
@@ -52,6 +58,18 @@ impl ImageMacro {
     #[inline]
     pub fn has_text(&self) -> bool {
         self.captions.len() > 0 && self.captions.iter().any(|c| !c.text.is_empty())
+    }
+}
+impl PartialEq<ImageMacro> for ImageMacro {
+    /// Check equality with another ImageMacro.
+    /// This is implemented not to take the order of Captions into account.
+    fn eq(&self, other: &Self) -> bool {
+        self.template == other.template &&
+        self.width == other.width &&
+        self.height == other.height &&
+        // O(n^2), I know.
+        self.captions.iter().all(|c1| other.captions.iter().any(|c2| c1 == c2))
+        // TODO: consider implementing captions as HashSet for this reason
     }
 }
 impl fmt::Debug for ImageMacro {

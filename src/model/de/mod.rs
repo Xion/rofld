@@ -4,3 +4,6 @@ mod alignment;
 mod caption;
 mod color;
 mod image_macro;
+
+#[cfg(test)]
+mod tests;

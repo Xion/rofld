@@ -3,6 +3,9 @@
 use super::types::{Color, HAlign};
 
 
+/// Maximum number of captions an ImageMacro can have.
+pub const MAX_CAPTION_COUNT: usize = 16;
+
 /// Name of the default font.
 pub const DEFAULT_FONT: &'static str = "Impact";
 
