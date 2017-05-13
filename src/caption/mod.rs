@@ -14,7 +14,7 @@ use atomic::{Atomic, Ordering};
 use futures::{BoxFuture, Future, future};
 use futures_cpupool::{self, CpuPool};
 use hyper::StatusCode;
-use image::{self, DynamicImage, FilterType, GenericImage};
+use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
 use rusttype::{point, Rect, vector};
 use tokio_timer::{Timer, TimeoutError, TimerError};
 
@@ -172,13 +172,15 @@ impl CaptionTask {
             .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
         let template = (*template).clone();  // clone the underlying image(s)
 
+        let img_format = template.preferred_format();
+
         // TODO: handle multiple images in a template when it's an animated GIF
         let mut img = self.resize_template(
             template.into_images().into_iter().next().unwrap());
         if self.has_text() {
             img = self.draw_texts(img)?;
         }
-        self.encode_image(img)
+        self.encode_image(img, img_format)
     }
 
     /// Resize template image to fit the desired dimensions.
@@ -248,12 +250,12 @@ impl CaptionTask {
         // Make sure the vertical margin isn't too large by limiting it
         // to a small percentage of image height.
         let max_vmargin: f32 = 16.0;
-        let vmargin = max_vmargin.signum() * max_vmargin.abs().min(height * 0.02);
+        let vmargin = max_vmargin.min(height * 0.02);
         trace!("Vertical text margin computed as {}", vmargin);
 
         // Similarly for the horizontal margin.
         let max_hmargin: f32 = 16.0;
-        let hmargin = max_hmargin.signum() * max_hmargin.abs().min(height * 0.02);
+        let hmargin = max_hmargin.min(height * 0.02);
         trace!("Horizontal text margin computed as {}", hmargin);
 
         let margin_vector = vector(hmargin, vmargin);
@@ -289,15 +291,28 @@ impl CaptionTask {
         Ok(img)
     }
 
-    /// Encode final result as PNG bytes.
-    fn encode_image(&self, img: DynamicImage) -> Result<Vec<u8>, CaptionError> {
-        debug!("Encoding final image as PNG...");
+    /// Encode final result as bytes of given image format.
+    fn encode_image(&self, img: DynamicImage,
+                    format: ImageFormat) -> Result<Vec<u8>, CaptionError> {
+        debug!("Encoding final image as {:?}...", format);
 
         let (width, height) = img.dimensions();
+        let pixels = &*img.raw_pixels();
+
         let mut image_bytes = vec![];
-        image::png::PNGEncoder::new(&mut image_bytes)
-            .encode(&*img.raw_pixels(), width, height, img.color())
-            .map_err(CaptionError::Encode)?;
+        match format {
+            ImageFormat::PNG => {
+                image::png::PNGEncoder::new(&mut image_bytes)
+                    .encode(pixels, width, height, img.color())
+            }
+            ImageFormat::JPEG => {
+                let quality = 85;  // TODO: server / request parameter?
+                trace!("Writing JPEG with quality {}", quality);
+                image::jpeg::JPEGEncoder::new_with_quality(&mut image_bytes, quality)
+                    .encode(pixels, width, height, img.color())
+            }
+            _ => return Err(CaptionError::Unavailable), // TODO: better error?
+        }.map_err(CaptionError::Encode)?;
 
         Ok(image_bytes)
     }
