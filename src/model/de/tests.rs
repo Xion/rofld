@@ -217,6 +217,87 @@ fn custom_font_for_simple_captions() {
 }
 
 #[test]
+fn custom_color_for_simple_captions() {
+    let input = json!({
+        "template": "boromir",
+        "color": "black",
+        "top_text": "One does not simply",
+        "bottom_text": "make a meme",
+    });
+    let expected = ImageMacro{
+        template: "boromir".into(),
+        captions: vec![
+            Caption{
+                text: "One does not simply".into(),
+                color: Color(0, 0, 0),
+                ..Caption::at(VAlign::Top)
+            },
+            Caption{
+                text: "make a meme".into(),
+                color: Color(0, 0, 0),
+                ..Caption::at(VAlign::Bottom)
+            },
+        ],
+        ..Default::default()
+    };
+    assert_that!(parse(input)).is_ok().is_equal_to(expected);
+}
+
+#[test]
+fn no_outline_for_simple_captions() {
+    let input = json!({
+        "template": "y_u_no",
+        "outline": null,
+        "top_text": "Y U no",
+        "bottom_text": "draw a text border",
+    });
+    let expected = ImageMacro{
+        template: "y_u_no".into(),
+        captions: vec![
+            Caption{
+                text: "Y U no".into(),
+                outline: None,
+                ..Caption::at(VAlign::Top)
+            },
+            Caption{
+                text: "draw a text border".into(),
+                outline: None,
+                ..Caption::at(VAlign::Bottom)
+            },
+        ],
+        ..Default::default()
+    };
+    assert_that!(parse(input)).is_ok().is_equal_to(expected);
+}
+
+#[test]
+fn custom_outline_for_simple_captions() {
+    let input = json!({
+        "template": "yodawg",
+        "outline": "blue",
+        "top_text": "Yo dawg, I heard you like colors",
+        "bottom_text": "so I put a colored text in a colored outline",
+    });
+    let expected = ImageMacro{
+        template: "yodawg".into(),
+        captions: vec![
+            Caption{
+                text: "Yo dawg, I heard you like colors".into(),
+                outline: Some(Color(0, 0, 0xff)),
+                ..Caption::at(VAlign::Top)
+            },
+            Caption{
+                text: "so I put a colored text in a colored outline".into(),
+                outline: Some(Color(0, 0, 0xff)),
+                ..Caption::at(VAlign::Bottom)
+            },
+        ],
+        ..Default::default()
+    };
+    assert_that!(parse(input)).is_ok().is_equal_to(expected);
+}
+
+#[test]
 fn empty_full_captions() {
     let input = json!({
         "template": "anditsgone",

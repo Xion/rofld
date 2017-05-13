@@ -8,13 +8,19 @@ use itertools::Itertools;
 use serde::de::{self, Deserialize, IntoDeserializer, Visitor};
 use unreachable::unreachable;
 
-use super::super::{Caption, ImageMacro, VAlign,
+use super::super::{Caption, Color, ImageMacro, VAlign,
                    DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN,
                    MAX_CAPTION_COUNT};
 
 
+/// Publicly mentioned fields of ImageMacro.
 const FIELDS: &'static [&'static str] = &[
     "template", "width", "height", "captions",
+];
+
+/// Semi-official fields that allow to set properties of all captions at once.
+const WHOLESALE_CAPTION_FIELDS: &'static [&'static str] = &[
+    "font", "color", "outline",
 ];
 
 
@@ -75,8 +81,10 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 "top_font"    | "middle_font"    | "bottom_font"    |
                 "top_color"   | "middle_color"   | "bottom_color"   |
                 "top_outline" | "middle_outline" | "bottom_outline" => {
-                    let is_duplicate = simple_fields.contains(&key) || (
-                        key.ends_with("_font") && simple_fields.contains("font"));
+                    let is_duplicate = simple_fields.contains(&key) ||
+                        WHOLESALE_CAPTION_FIELDS.iter().any(|&f| {
+                            key.ends_with(&format!("_{}", f)) && simple_fields.contains(f)
+                        });
                     if is_duplicate {
                         return Err(de::Error::custom(format_args!("duplicate field `{}`", key)));
                     }
@@ -104,8 +112,9 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 }
 
                 // Wholesale setting of simple captions' properties.
-                // TODO: color & outline
                 "font" => {
+                    assert!(WHOLESALE_CAPTION_FIELDS.contains(&key.as_str()));
+
                     let is_duplicate = simple_fields.contains(&key) ||
                         simple_fields.iter().any(|f| f.ends_with("_font"));
                     if is_duplicate {
@@ -118,6 +127,40 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         let mut caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
                         caption.font = font.clone();
+                    }
+                }
+                "color" => {
+                    assert!(WHOLESALE_CAPTION_FIELDS.contains(&key.as_str()));
+
+                    let is_duplicate = simple_fields.contains(&key) ||
+                        simple_fields.iter().any(|f| f.ends_with("_color"));
+                    if is_duplicate {
+                        return Err(de::Error::duplicate_field("color"));
+                    }
+                    simple_fields.insert("color".into());
+
+                    let color: Color = map.next_value()?;
+                    for valign in VAlign::iter_variants() {
+                        let mut caption = simple_captions.entry(valign)
+                            .or_insert_with(|| Caption::at(valign));
+                        caption.color = color;
+                    }
+                }
+                "outline" => {
+                    assert!(WHOLESALE_CAPTION_FIELDS.contains(&key.as_str()));
+
+                    let is_duplicate = simple_fields.contains(&key) ||
+                        simple_fields.iter().any(|f| f.ends_with("_outline"));
+                    if is_duplicate {
+                        return Err(de::Error::duplicate_field("outline"));
+                    }
+                    simple_fields.insert("outline".into());
+
+                    let outline: Option<Color> = map.next_value()?;
+                    for valign in VAlign::iter_variants() {
+                        let mut caption = simple_captions.entry(valign)
+                            .or_insert_with(|| Caption::at(valign));
+                        caption.outline = outline;
                     }
                 }
 
@@ -174,10 +217,19 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         // The input should either use the full "captions" field,
         // or the simpler version with top/middle/bottom_test/align -- but not both.
         let mut captions;
-        if simple_captions.len() > 0 && full_captions.is_some() {
-            return Err(de::Error::custom(
-                "`captions` cannot be provided along with `top/middle/bottom_text/align/font`"))
+        if full_captions.is_some() {
+            if simple_captions.len() > 0 {
+                return Err(de::Error::custom(
+                    "`captions` cannot be provided along with `top/middle/bottom_text/align/font`"))
+            }
+            if simple_fields.len() > 0 {
+                return Err(de::Error::custom(
+                    format_args!("custom `{}` cannot be provided along with `captions`",
+                        simple_fields.iter().next().unwrap())));
+            }
         }
+
+        // Convert everything to "full" captions either way.
         if simple_captions.len() > 0 {
             captions = simple_captions.into_iter()
                 .map(|(_, c)| c).filter(|c| !c.text.is_empty())
