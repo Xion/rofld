@@ -13,7 +13,6 @@ use std::time::Duration;
 use atomic::{Atomic, Ordering};
 use futures::{BoxFuture, Future, future};
 use futures_cpupool::{self, CpuPool};
-use gif::{self, SetParameter};
 use hyper::StatusCode;
 use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
 use rusttype::{point, Rect, vector};
@@ -21,6 +20,7 @@ use tokio_timer::{Timer, TimeoutError, TimerError};
 
 use model::{Caption, ImageMacro};
 use resources::{Cache, Template};
+use util::animated_gif;
 use self::text::Style;
 
 
@@ -51,7 +51,7 @@ impl Captioner {
         let mut builder = futures_cpupool::Builder::new();
         builder.name_prefix("caption-");
         builder.after_start(|| trace!("Worker thread created in Captioner::pool"));
-        builder.before_stop(|| trace!("Stopping worker a thread from Captioner::pool"));
+        builder.before_stop(|| trace!("Stopping worker thread in Captioner::pool"));
         builder
     }
 }
@@ -138,6 +138,8 @@ impl Captioner {
         // Impose a timeout on the task.
         let max_duration = self.task_timeout.load(Ordering::Relaxed);
         if max_duration.as_secs() > 0 {
+            // TODO: this doesn't seem to actually kill the underlying thread,
+            // figure out how to do that
             self.timer.timeout(task_future, max_duration).boxed()
         } else {
             task_future.boxed()
@@ -185,9 +187,9 @@ impl CaptionTask {
         // (which usually means just one, unless it's an animated GIF).
         let mut images = Vec::with_capacity(template.image_count());
         for mut img in template.iter_images().cloned() {
-            // XXX: resizing images like this breaks GIFs that put their frames
+            // XXX: resizing images like this may break GIFs that put their frames
             // all over the "logical screen" and not just covering it all every time;
-            // to support that, we'd need to consider the logical position & size
+            // to support that, we'd need to consider the logical size
             // for each image here
             img = self.resize_template(img);
             if self.has_text() {
@@ -195,7 +197,7 @@ impl CaptionTask {
             }
             images.push(img);
         }
-        self.encode_result(&images[..], &*template)
+        self.encode_result(images, &*template)
     }
 
     /// Resize a template image to fit the desired dimensions.
@@ -307,7 +309,7 @@ impl CaptionTask {
     }
 
     /// Encode final result as bytes of the appropriate image format.
-    fn encode_result(&self, images: &[DynamicImage],
+    fn encode_result(&self, images: Vec<DynamicImage>,
                      template: &Template) -> Result<Vec<u8>, CaptionError> {
         let format = template.preferred_format();
         debug!("Encoding final image as {:?}...", format);
@@ -339,34 +341,9 @@ impl CaptionTask {
             }
             ImageFormat::GIF => {
                 if let &Template::Animation(ref gif_anim) = template {
-                    let frames_count = gif_anim.frames_count();
-                    trace!("Writing animated GIF with {} frame(s)", frames_count);
-                    assert_eq!(frames_count, images.len());
-
-                    let mut encoder = gif::Encoder::new(&mut result,
-                        gif_anim.width, gif_anim.height, &*gif_anim.palette)
-                            .map_err(CaptionError::Encode)?;
-                    encoder.set(gif::Repeat::Infinite).map_err(CaptionError::Encode)?;
-
-                    for (i, (img, frame)) in images.iter().zip(gif_anim.iter_frames()).enumerate() {
-                        trace!("Writing frame #{}", i + 1);
-                        let mut gif_frame = frame.metadata.clone();
-
-                        let (width, height) = img.dimensions();
-                        let width = width as u16;
-                        let height = height as u16;
-
-                        // TODO: see below, as this is probably slower than necessary
-                        let mut pixels = img.raw_pixels().to_owned();
-                        let pixels_frame = gif::Frame::from_rgba(width, height, &mut pixels);
-                        gif_frame.width = pixels_frame.width;
-                        gif_frame.height = pixels_frame.height;
-                        gif_frame.buffer = pixels_frame.buffer;
-                        gif_frame.palette = pixels_frame.palette;
-                        gif_frame.transparent = gif_frame.transparent;
-
-                        encoder.write_frame(&gif_frame).map_err(CaptionError::Encode)?;
-                    }
+                    trace!("Writing animated GIF with {} frame(s)", gif_anim.frames_count());
+                    animated_gif::encode_modified(gif_anim, images, &mut result)
+                        .map_err(CaptionError::Encode)?;
                 } else {
                     trace!("Writing regular (still) GIF");
                     assert_eq!(1, images.len());

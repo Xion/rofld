@@ -13,6 +13,7 @@
              extern crate futures;
              extern crate futures_cpupool;
              extern crate gif;
+             extern crate gif_dispose;
              extern crate glob;
              extern crate hyper;
              extern crate image;

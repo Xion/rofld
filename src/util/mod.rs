@@ -1,5 +1,7 @@
 //! Utility code.
 
+pub mod animated_gif;
+
 
 /// Derive an implementation of From<InnerType> for one variant of a unary enum.
 /// Adapter from the source of error_derive crate.
