@@ -7,4 +7,4 @@ mod templates;
 
 pub use self::cache::Cache;
 pub use self::fonts::{list as list_fonts};
-pub use self::templates::{list as list_templates};
+pub use self::templates::{list as list_templates, Template};

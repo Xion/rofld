@@ -12,6 +12,7 @@
 #[macro_use] extern crate error_derive;
              extern crate futures;
              extern crate futures_cpupool;
+             extern crate gif;
              extern crate glob;
              extern crate hyper;
              extern crate image;
@@ -169,6 +170,7 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
           B: Stream<Error=hyper::Error> + 'static, B::Item: AsRef<[u8]>
 {
     trace!("Setting configuration options...");
+
     if let Some(rt_count) = opts.render_threads {
         CAPTIONER.set_thread_count(rt_count);
         debug!("Number of threads for image captioning set to {}", rt_count);
@@ -181,10 +183,16 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
         CAPTIONER.cache().set_font_capacity(fcs);
         debug!("Size of the font cache set to {}", fcs);
     }
+
     server.shutdown_timeout(opts.shutdown_timeout);
     debug!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
+
     CAPTIONER.set_task_timeout(opts.request_timeout);
-    debug!("Request timeout set to {} secs", opts.request_timeout.as_secs());
+    if opts.request_timeout.as_secs() > 0 {
+        debug!("Request timeout set to {} secs", opts.request_timeout.as_secs());
+    } else {
+        debug!("Request timeout disabled.");
+    }
 }
 
 /// Handle ^C and return a future a future that resolves when it's pressed.

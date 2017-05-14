@@ -230,7 +230,10 @@ fn create_parser<'p>() -> Parser<'p> {
             .long("request-timeout")
             .value_name("SECS")
             .required(false)
-            .default_value(to_static_str!(DEFAULT_REQUEST_TIMEOUT))
+            .default_value(to_static_str!(
+                // Disable request timeouts in debug mode unless specifically requested.
+                if cfg!(debug_assertions) { 0 } else { DEFAULT_REQUEST_TIMEOUT }
+            ))
             .help("Maximum time allowed for a single request (secs)"))
         .arg(Arg::with_name(OPT_SHUTDOWN_TIMEOUT)
             .long("shutdown-timeout")

@@ -21,6 +21,7 @@ enum_derive = "*"
 error_derive = "*"
 futures = "0.1"
 futures-cpupool = "0.1"
+gif = "0.9"
 glob = "0.2"
 # TODO: change to hyper from crates.io when the async version is released
 hyper = { git = "https://github.com/hyperium/hyper.git" }
