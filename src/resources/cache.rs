@@ -34,17 +34,27 @@ impl Cache {
 
 impl Cache {
     #[inline]
+    pub fn get_template_capacity(&self) -> usize {
+        self.templates.lock().expect("Cache::templates lock poisoned")
+            .capacity()
+    }
+
+    #[inline]
+    pub fn get_font_capacity(&self) -> usize {
+        self.fonts.lock().expect("Cache::templates lock poisoned")
+            .capacity()
+    }
+
+    #[inline]
     pub fn set_template_capacity(&self, capacity: usize) -> &Self {
-        self.templates.lock()
-            .expect("Cache::templates lock poisoned")
+        self.templates.lock().expect("Cache::templates lock poisoned")
             .set_capacity(capacity);
         self
     }
 
     #[inline]
     pub fn set_font_capacity(&self, capacity: usize) -> &Self {
-        self.fonts.lock()
-            .expect("Cache::fonts lock poisoned")
+        self.fonts.lock().expect("Cache::fonts lock poisoned")
             .set_capacity(capacity);
         self
     }
@@ -64,7 +74,11 @@ impl Cache {
             }
         }
         debug!("Cache miss for template `{}`", name);
+        self.load_template(name)
+    }
 
+    /// Load template of given name into the cache, even if it exists there already.
+    pub fn load_template(&self, name: &str) -> Option<Arc<Template>> {
         // Load the image template outside of the critical section.
         if let Some(tmpl) = templates::load(name) {
             let tmpl = Arc::new(tmpl);
@@ -73,7 +87,6 @@ impl Cache {
             trace!("Template `{}` cached", name);
             return Some(tmpl);
         }
-
         None
     }
 
@@ -90,7 +103,11 @@ impl Cache {
             }
         }
         debug!("Cache miss for font `{}`", name);
+        self.load_font(name)
+    }
 
+    /// Load font of given name into the cache, even if it exists there already.
+    pub fn load_font(&self, name: &str) -> Option<Arc<Font<'static>>> {
         // Load the font outside of a critical section.
         if let Some(font) = fonts::load(name) {
             let font = Arc::new(font);
@@ -99,7 +116,6 @@ impl Cache {
             trace!("Font `{}` cached", name);
             return Some(font);
         }
-
         None
     }
 }

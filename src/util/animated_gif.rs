@@ -98,10 +98,7 @@ impl Error for DecodeError {
         match *self {
             DecodeError::Io(ref e) => Some(e),
             DecodeError::Gif(ref e) => Some(e),
-            // TODO: figure out why trying to return Some(e) gives us:
-            // * the trait `std::marker::Sized` is not implemented for `std::error::Error + 'static`
-            // (even though this should be Box<Error> trait object, i.e. perfectly Sized)
-            DecodeError::GifDispose(_) => None,
+            DecodeError::GifDispose(ref e) => Some(&**e),
         }
     }
 }

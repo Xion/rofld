@@ -11,10 +11,12 @@ use std::time::Duration;
 use atomic::{Atomic, Ordering};
 use futures::{BoxFuture, Future, future};
 use futures_cpupool::{self, CpuPool};
+use rand::{self, thread_rng};
 use tokio_timer::Timer;
 
+use args::Resource;
 use model::ImageMacro;
-use resources::Cache;
+use resources::{Cache, list_fonts, list_templates};
 use self::error::CaptionError;
 use self::task::CaptionTask;
 
@@ -84,6 +86,27 @@ impl Captioner {
         }
         self.task_timeout.store(timeout, Ordering::Relaxed);
         self
+    }
+
+    /// Fill the cache for given type of resource.
+    pub fn preload(&self, what: Resource) {
+        let mut rng = thread_rng();
+        match what {
+            Resource::Template => {
+                let capacity = self.cache.get_template_capacity();
+                debug!("Preloading up to {} templates", capacity);
+                for template in rand::sample(&mut rng, list_templates(), capacity) {
+                    self.cache.load_template(&template);
+                }
+            }
+            Resource::Font => {
+                let capacity = self.cache.get_font_capacity();
+                debug!("Preloading up to {} fonts", capacity);
+                for template in rand::sample(&mut rng, list_fonts(), capacity) {
+                    self.cache.load_font(&template);
+                }
+            }
+        }
     }
 }
 

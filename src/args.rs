@@ -2,13 +2,17 @@
 
 use std::borrow::Cow;
 use std::env;
+use std::error::Error;
 use std::ffi::OsString;
+use std::mem;
 use std::net::{AddrParseError, SocketAddr};
 use std::num::ParseIntError;
 use std::time::Duration;
 
 use clap::{self, AppSettings, Arg, ArgMatches, ArgSettings};
 use conv::TryFrom;
+use conv::errors::Unrepresentable;
+use enum_set::{CLike, EnumSet};
 
 use super::{NAME, VERSION};
 
@@ -51,6 +55,8 @@ pub struct Options {
     pub template_cache_size: Option<usize>,
     /// Size of the font cache.
     pub font_cache_size: Option<usize>,
+    /// Which kinds of resources to preload.
+    pub preload: EnumSet<Resource>,
 
     // Maximum time allowed for a single caption request.
     pub request_timeout: Duration,
@@ -107,6 +113,39 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             Some(fcs) => Some(try!(fcs.parse::<usize>().map_err(ArgsError::FontCache))),
             None => None,
         };
+        let preload = {
+            let mut p = EnumSet::new();
+            let (mut all_count, mut none_count) = (0, 0);
+
+            // See what --preload arguments we've got.
+            let values = matches.values_of_lossy(OPT_PRELOAD).unwrap_or_else(Vec::new);
+            for v in &values {
+                match v.as_str() {
+                    "all" | "both" => { all_count += 1; }
+                    "none" => { none_count += 1; }
+                    v => { p.insert(Resource::try_from(v).map_err(PreloadError::InvalidResource)?); }
+                }
+            }
+
+            // Validate the usage of "all" and "none".
+            if all_count > 0 && none_count > 0 {
+                return Err(ArgsError::Preload(PreloadError::Conflict(
+                    "cannot specify `--preload all` and `--preload none` simultaneously".into())));
+            }
+            if all_count > 0 && all_count < values.len() {
+                return Err(ArgsError::Preload(PreloadError::Conflict(
+                    "cannot specify `--preload all` alongside specific resource types".into())));
+            }
+            if none_count > 0 && none_count < values.len() {
+                return Err(ArgsError::Preload(PreloadError::Conflict(
+                    "cannot specify `--preload none` alongside specific resource types".into())));
+            }
+
+            // Apply them if necessary.
+            if all_count > 0  { p.extend(Resource::iter_variants()); }
+            if none_count > 0 { p.clear(); }
+            p
+        };
 
         let request_timeout = Duration::from_secs(
             try!(matches.value_of(OPT_REQUEST_TIMEOUT).unwrap()
@@ -116,13 +155,10 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
                 .parse::<u64>().map_err(ArgsError::ShutdownTimeout)));
 
         Ok(Options{
-            verbosity: verbosity,
-            address: address,
-            render_threads: render_threads,
-            template_cache_size: template_cache_size,
-            font_cache_size: font_cache_size,
-            request_timeout: request_timeout,
-            shutdown_timeout: shutdown_timeout,
+            verbosity, address,
+            render_threads,
+            template_cache_size, font_cache_size, preload,
+            request_timeout, shutdown_timeout,
         })
     }
 }
@@ -142,6 +178,8 @@ custom_derive! {
         TemplateCache(ParseIntError),
         /// Error while parsing --font-cache flag.
         FontCache(ParseIntError),
+        /// Error while parsing --preload flag.
+        Preload(PreloadError),
         /// Error while parsing --request-timeout flag.
         RequestTimeout(ParseIntError),
         /// Error while parsing --shutdown-timeout flag.
@@ -150,6 +188,53 @@ custom_derive! {
 }
 derive_enum_from!(clap::Error => ArgsError::Parse);
 derive_enum_from!(AddrParseError => ArgsError::Address);
+derive_enum_from!(PreloadError => ArgsError::Preload);
+
+custom_derive! {
+    /// Error that can occur while parsing the --preload flag.
+    #[derive(Debug, ErrorDisplay, ErrorFrom)]
+    pub enum PreloadError {
+        /// "all" or "none" is used alongside other options.
+        Conflict(Box<Error>),
+        /// Unknown resource type.
+        InvalidResource(Unrepresentable<String>),
+    }
+}
+impl Error for PreloadError {
+    fn description(&self) -> &str { "invalid --preload value" }
+    fn cause(&self) -> Option<&Error> {
+        match self {
+            &PreloadError::Conflict(ref e) => Some(&**e),
+            &PreloadError::InvalidResource(ref e) => Some(e),
+        }
+    }
+}
+
+
+custom_derive! {
+    /// One of the resources used for rendering image macros.
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash,
+             IterVariants(Resources))]
+    #[repr(u32)]
+    pub enum Resource { Template, Font }
+}
+impl CLike for Resource {
+    fn to_u32(&self) -> u32            { *self as u32 }
+    unsafe fn from_u32(v: u32) -> Self { mem::transmute(v) }
+}
+impl<'s> TryFrom<&'s str> for Resource {
+    type Err = Unrepresentable<String>;
+
+    fn try_from(s: &'s str) -> Result<Self, Self::Err> {
+        let s = s.trim_right_matches("s");  // accept singular/plural
+        for r in Resource::iter_variants() {
+            if format!("{:?}", r).to_lowercase() == s {
+                return Ok(r);
+            }
+        }
+        Err(Unrepresentable(s.to_owned()))
+    }
+}
 
 
 // Parser configuration
@@ -167,10 +252,14 @@ const ARG_ADDR: &'static str = "address";
 const OPT_RENDER_THREADS: &'static str = "render-threads";
 const OPT_TEMPLATE_CACHE_SIZE: &'static str = "template-cache";
 const OPT_FONT_CACHE_SIZE: &'static str = "font-cache";
+const OPT_PRELOAD: &'static str = "preload";
 const OPT_REQUEST_TIMEOUT: &'static str = "request-timeout";
 const OPT_SHUTDOWN_TIMEOUT: &'static str = "shutdown-timeout";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
+
+const VALID_PRELOAD: &'static [&'static str] = &["all", "both", "none",
+                                                 "templates", "fonts"];
 
 const DEFAULT_HOST: &'static str = "0.0.0.0";
 const DEFAULT_PORT: u16 = 1337;
@@ -213,7 +302,7 @@ fn create_parser<'p>() -> Parser<'p> {
                 "Number of threads used for image captioning.\n\n",
                 "If omitted, one thread per each CPU core will be used.")))
 
-        // Cache capacity.
+        // Cache options.
         .arg(Arg::with_name(OPT_TEMPLATE_CACHE_SIZE)
             .long("template-cache")
             .value_name("SIZE")
@@ -224,6 +313,18 @@ fn create_parser<'p>() -> Parser<'p> {
             .value_name("SIZE")
             .required(false)
             .help("Size of the font cache"))
+        .arg(Arg::with_name(OPT_PRELOAD)
+            .long("preload")
+            .value_name("WHAT")
+            .required(false)
+            .possible_values(VALID_PRELOAD)
+            .multiple(true).number_of_values(1)
+            .help("What resources to preload on server startup")
+            .long_help(concat!(
+                "Which resource caches should be filled when the server starts\n\n",
+                "All the resources found during server startup will be loaded & cached ",
+                "(up to relevant caches' capacities). ",
+                "The exact subset of resources to preload in this way is randomized.")))
 
         // Timeout flags.
         .arg(Arg::with_name(OPT_REQUEST_TIMEOUT)
@@ -261,9 +362,39 @@ fn create_parser<'p>() -> Parser<'p> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use conv::TryFrom;
     use spectral::prelude::*;
     use ::NAME;
-    use super::parse_from_argv;
+    use super::{parse_from_argv, Resource, VALID_PRELOAD};
+
+    /// Check that the VALID_PRELOAD options make sense.
+    #[test]
+    fn preload_is_consistent() {
+        let mut valid_preload_opts: HashSet<_> = VALID_PRELOAD.iter().collect();
+        let resources = Resource::iter_variants().collect::<HashSet<_>>();
+
+        // Remove the broad / special values for the --preload flag.
+        for x in ["all", "none"].iter() {
+            assert!(valid_preload_opts.contains(x),
+                "{:?} does not contain {:?}", VALID_PRELOAD, x);
+            valid_preload_opts.remove(x);
+        }
+        assert!(valid_preload_opts.remove(&"both") == (resources.len() == 2),
+            "{:?} may only contain {:?} iff there are exactly two resource types",
+            VALID_PRELOAD, "both");
+
+        // What remains should be convertible to resources -- all resources.
+        // (THough it's fine if more than one value converts to the same Resource).
+        let mut converted_resources = HashSet::new();
+        for &vp in valid_preload_opts {
+            let resource = Resource::try_from(vp)
+                .expect(&format!("{:?} doesn't convert to a preloadable Resource", vp));
+            converted_resources.insert(resource);
+        }
+        assert_eq!(resources, converted_resources,
+            "{:?} doesn't contain values for all Resources", VALID_PRELOAD);
+    }
 
     #[test]
     fn no_args() {

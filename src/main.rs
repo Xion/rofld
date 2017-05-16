@@ -9,6 +9,7 @@
              extern crate css_color_parser;
 #[macro_use] extern crate custom_derive;
 #[macro_use] extern crate enum_derive;
+             extern crate enum_set;
 #[macro_use] extern crate error_derive;
              extern crate futures;
              extern crate futures_cpupool;
@@ -25,6 +26,7 @@
 #[macro_use] extern crate mime;
              extern crate nix;
              extern crate num;
+             extern crate rand;
              extern crate regex;
              extern crate rusttype;
              extern crate serde;
@@ -176,6 +178,7 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
         CAPTIONER.set_thread_count(rt_count);
         debug!("Number of threads for image captioning set to {}", rt_count);
     }
+
     if let Some(tcs) = opts.template_cache_size {
         CAPTIONER.cache().set_template_capacity(tcs);
         debug!("Size of the template cache set to {}", tcs);
@@ -183,6 +186,10 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
     if let Some(fcs) = opts.font_cache_size {
         CAPTIONER.cache().set_font_capacity(fcs);
         debug!("Size of the font cache set to {}", fcs);
+    }
+    for resource in &opts.preload {
+        // TODO: measure preload time and log how long it took
+        CAPTIONER.preload(resource);
     }
 
     server.shutdown_timeout(opts.shutdown_timeout);
