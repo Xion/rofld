@@ -93,14 +93,16 @@ impl Captioner {
         let mut rng = thread_rng();
         match what {
             Resource::Template => {
-                let capacity = self.cache.get_template_capacity();
+                let capacity = self.cache.templates().capacity();
                 debug!("Preloading up to {} templates", capacity);
+                // TODO: the sampling is O(N_t*C), so it can be quadratic;
+                // pick a better method (probably the random_choice crate)
                 for template in rand::sample(&mut rng, list_templates(), capacity) {
                     self.cache.load_template(&template);
                 }
             }
             Resource::Font => {
-                let capacity = self.cache.get_font_capacity();
+                let capacity = self.cache.fonts().capacity();
                 debug!("Preloading up to {} fonts", capacity);
                 for template in rand::sample(&mut rng, list_fonts(), capacity) {
                     self.cache.load_font(&template);

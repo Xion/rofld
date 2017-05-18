@@ -4,12 +4,13 @@ use std::borrow::Cow;
 use std::env;
 use std::error::Error;
 use std::ffi::OsString;
+use std::fmt;
 use std::mem;
 use std::net::{AddrParseError, SocketAddr};
 use std::num::ParseIntError;
 use std::time::Duration;
 
-use clap::{self, AppSettings, Arg, ArgMatches, ArgSettings};
+use clap::{self, AppSettings, Arg, ArgMatches};
 use conv::TryFrom;
 use conv::errors::Unrepresentable;
 use enum_set::{CLike, EnumSet};
@@ -118,9 +119,10 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             let (mut all_count, mut none_count) = (0, 0);
 
             // See what --preload arguments we've got.
-            let values = matches.values_of_lossy(OPT_PRELOAD).unwrap_or_else(Vec::new);
-            for v in &values {
-                match v.as_str() {
+            let values = matches.values_of(OPT_PRELOAD)
+                .map(|vs| vs.collect()).unwrap_or_else(Vec::new);
+            for &v in &values {
+                match v {
                     "all" | "both" => { all_count += 1; }
                     "none" => { none_count += 1; }
                     v => { p.insert(Resource::try_from(v).map_err(PreloadError::InvalidResource)?); }
@@ -192,7 +194,7 @@ derive_enum_from!(PreloadError => ArgsError::Preload);
 
 custom_derive! {
     /// Error that can occur while parsing the --preload flag.
-    #[derive(Debug, ErrorDisplay, ErrorFrom)]
+    #[derive(Debug, ErrorFrom)]
     pub enum PreloadError {
         /// "all" or "none" is used alongside other options.
         Conflict(Box<Error>),
@@ -207,6 +209,15 @@ impl Error for PreloadError {
             &PreloadError::Conflict(ref e) => Some(&**e),
             &PreloadError::InvalidResource(ref e) => Some(e),
         }
+    }
+}
+impl fmt::Display for PreloadError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}: {}", self.description(), match *self {
+            PreloadError::Conflict(ref e) => format!("{}", e),
+            PreloadError::InvalidResource(
+                Unrepresentable(ref s)) => format!("unknown resource type `{}`", s),
+        })
     }
 }
 
@@ -277,7 +288,10 @@ fn create_parser<'p>() -> Parser<'p> {
         .about(*ABOUT)
         .author(crate_authors!(", "))
 
+        .setting(AppSettings::StrictUtf8)
+
         .setting(AppSettings::UnifiedHelpMessage)
+        .setting(AppSettings::DontCollapseArgsInUsage)
         .setting(AppSettings::DeriveDisplayOrder)
         .setting(AppSettings::ColorNever)
 
@@ -323,7 +337,7 @@ fn create_parser<'p>() -> Parser<'p> {
             .long_help(concat!(
                 "Which resource caches should be filled when the server starts\n\n",
                 "All the resources found during server startup will be loaded & cached ",
-                "(up to relevant caches' capacities). ",
+                "(up to the relevant caches' capacities). ",
                 "The exact subset of resources to preload in this way is randomized.")))
 
         // Timeout flags.
@@ -346,12 +360,12 @@ fn create_parser<'p>() -> Parser<'p> {
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)
             .long("verbose").short("v")
-            .set(ArgSettings::Multiple)
+            .multiple(true)
             .conflicts_with(OPT_QUIET)
             .help("Increase logging verbosity"))
         .arg(Arg::with_name(OPT_QUIET)
             .long("quiet").short("q")
-            .set(ArgSettings::Multiple)
+            .multiple(true)
             .conflicts_with(OPT_VERBOSE)
             .help("Decrease logging verbosity"))
 
@@ -468,5 +482,33 @@ mod tests {
         assert_that!(parse_from_argv(vec![*NAME, "--font-cache", "-42"])).is_err();
         // This is fine.
         assert_that!(parse_from_argv(vec![*NAME, "--font-cache", "16"])).is_ok();
+    }
+
+    #[test]
+    fn preload_arg() {
+        // Needs a value.
+        assert_that!(parse_from_argv(vec![*NAME, "--preload"])).is_err();
+        // Value can be all/none.
+        assert_that!(parse_from_argv(vec![*NAME, "--preload", "all"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "--preload", "none"])).is_ok();
+        // It can also be a resource type.
+        assert_that!(parse_from_argv(vec![*NAME, "--preload", "templates"])).is_ok();
+        assert_that!(parse_from_argv(vec![*NAME, "--preload", "fonts"])).is_ok();
+        // But not both, since that doesn't make sense.
+        assert_that!(parse_from_argv(vec![
+            *NAME, "--preload", "templates", "--preload", "all"])).is_err();
+        assert_that!(parse_from_argv(vec![
+            *NAME, "--preload", "fonts", "--preload", "none"])).is_err();
+        // all & none simultaneously makes even less of a sense.
+        assert_that!(parse_from_argv(vec![
+            *NAME, "--preload", "all", "--preload", "none"])).is_err();
+        // Multiple resource types should work though (even if redundant).
+        assert_that!(parse_from_argv(vec![
+            *NAME, "--preload", "templates", "--preload", "fonts"])).is_ok();
+        assert_that!(parse_from_argv(vec![
+            *NAME, "--preload", "templates", "--preload", "templates"])).is_ok();
+        assert_that!(parse_from_argv(vec![
+            *NAME, "--preload", "templates", "--preload", "templates",
+            "--preload", "fonts", "--preload", "fonts", "--preload", "fonts"])).is_ok();
     }
 }

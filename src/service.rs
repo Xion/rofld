@@ -33,6 +33,7 @@ impl Service for Rofl {
             (_, "/caption") => return self.handle_caption(req),
             (&Get, "/templates") => return self.handle_list_templates(req),
             (&Get, "/fonts") => return self.handle_list_fonts(req),
+            (&Get, "/stats") => return self.handle_stats(req),
             _ => {},
         }
 
@@ -109,6 +110,30 @@ impl Rofl {
         let response = Response::new()
             .with_body(json!(font_names).to_string());
         future::ok(response).boxed()
+    }
+
+    /// Handle the server statistics request.
+    fn handle_stats(&self, _: Request) -> <Self as Service>::Future {
+        let template_capacity = CAPTIONER.cache().templates().capacity();
+        let font_capacity = CAPTIONER.cache().fonts().capacity();
+
+        let stats = json!({
+            "cache": {
+                "templates": {
+                    "capacity": template_capacity,
+                    "fill_rate": CAPTIONER.cache().templates().len() as f32 / template_capacity as f32,
+                    "misses": CAPTIONER.cache().templates().misses(),
+                    "hits": CAPTIONER.cache().templates().hits(),
+                },
+                "fonts": {
+                    "capacity": font_capacity,
+                    "fill_rate": CAPTIONER.cache().fonts().len() as f32 / font_capacity as f32,
+                    "misses": CAPTIONER.cache().fonts().misses(),
+                    "hits": CAPTIONER.cache().fonts().hits(),
+                }
+            }
+        });
+        future::ok(Response::new().with_body(stats.to_string())).boxed()
     }
 }
 

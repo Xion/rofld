@@ -180,11 +180,11 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
     }
 
     if let Some(tcs) = opts.template_cache_size {
-        CAPTIONER.cache().set_template_capacity(tcs);
+        CAPTIONER.cache().templates().set_capacity(tcs);
         debug!("Size of the template cache set to {}", tcs);
     }
     if let Some(fcs) = opts.font_cache_size {
-        CAPTIONER.cache().set_font_capacity(fcs);
+        CAPTIONER.cache().fonts().set_capacity(fcs);
         debug!("Size of the font cache set to {}", fcs);
     }
     for resource in &opts.preload {
