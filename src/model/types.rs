@@ -27,10 +27,10 @@ pub struct Caption {
     pub outline: Option<Color>,
 }
 
-custom_derive! {
+macro_attr! {
     /// Horizontal alignment of text within a rectangle.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-             IterVariants(HAligns))]
+             IterVariants!(HAligns))]
     pub enum HAlign {
         Left,
         Center,
@@ -38,10 +38,10 @@ custom_derive! {
     }
 }
 
-custom_derive! {
+macro_attr! {
     /// Vertical alignment of text within a rectangle.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-             IterVariants(VAligns))]
+             IterVariants!(VAligns))]
     pub enum VAlign {
         Top,
         Middle,

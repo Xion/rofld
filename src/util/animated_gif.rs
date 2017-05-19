@@ -80,9 +80,9 @@ impl GifFrame {
 
 // Decoding animated GIFs
 
-custom_derive! {
+macro_attr! {
     #[derive(Debug,
-             ErrorDisplay, ErrorFrom)]
+             ErrorDisplay!, ErrorFrom!)]
     pub enum DecodeError {
         /// I/O error encountered when decoding GIF.
         Io(io::Error),

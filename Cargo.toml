@@ -16,7 +16,6 @@ clap = { version = "2.19", features = ["suggestions"] }
 conv = "0.3"
 # TODO: change to crates.io version when a new version is published
 css-color-parser = { git = "https://github.com/7thSigil/css-color-parser-rs.git" }
-custom_derive = "*"
 enum_derive = "*"
 enum-set = "*"
 error_derive = "*"
@@ -33,6 +32,7 @@ itertools = "0.6"
 lazy_static = "*"
 log = "*"
 lru-cache = "0.1"
+macro-attr = "0.2"
 maplit = "0.1"
 mime = "0.2"
 nix = "0.8"

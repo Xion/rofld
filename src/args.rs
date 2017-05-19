@@ -165,10 +165,10 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
     }
 }
 
-custom_derive! {
+macro_attr! {
     /// Error that can occur while parsing of command line arguments.
     #[derive(Debug,
-             Error("command line arguments error"), ErrorDisplay)]
+             Error!("command line arguments error"), ErrorDisplay!)]
     pub enum ArgsError {
         /// General when parsing the arguments.
         Parse(clap::Error),
@@ -192,9 +192,9 @@ derive_enum_from!(clap::Error => ArgsError::Parse);
 derive_enum_from!(AddrParseError => ArgsError::Address);
 derive_enum_from!(PreloadError => ArgsError::Preload);
 
-custom_derive! {
+macro_attr! {
     /// Error that can occur while parsing the --preload flag.
-    #[derive(Debug, ErrorFrom)]
+    #[derive(Debug, ErrorFrom!)]
     pub enum PreloadError {
         /// "all" or "none" is used alongside other options.
         Conflict(Box<Error>),
@@ -222,10 +222,10 @@ impl fmt::Display for PreloadError {
 }
 
 
-custom_derive! {
+macro_attr! {
     /// One of the resources used for rendering image macros.
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash,
-             IterVariants(Resources))]
+             IterVariants!(Resources))]
     #[repr(u32)]
     pub enum Resource { Template, Font }
 }

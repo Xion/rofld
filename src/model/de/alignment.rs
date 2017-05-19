@@ -1,4 +1,11 @@
 //! Deserializers for the alignment types.
+//!
+//! This is implemented manually rather than using #[derive(Deserialize)]
+//! because serde_qs doesn't seem to work with the derived version,
+//! producing silly errors such as:
+//! ```notrust
+//! Error { err: "invalid type: string \"top\", expected enum VAlign" }
+//! ```
 
 use std::fmt;
 

@@ -129,9 +129,9 @@ impl<P: AsRef<Path>> TryFrom<P> for Template {
     }
 }
 
-custom_derive! {
+macro_attr! {
     #[derive(Debug,
-             Error("template loading error"), ErrorDisplay, ErrorFrom)]
+             Error!("template loading error"), ErrorDisplay!, ErrorFrom!)]
     pub enum TemplateError {
         OpenImage(image::ImageError),
         DecodeAnimatedGif(animated_gif::DecodeError),
