@@ -1,18 +1,19 @@
 //! Module with the service that implements ALL the functionality.
 
 use std::error::Error;
+use std::hash::Hash;
 
 use futures::{BoxFuture, future, Future};
 use hyper::{self, Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Service, Request, Response};
-use serde_json;
+use serde_json::{self, Value as Json};
 use serde_qs;
 
 use caption::CAPTIONER;
 use ext::hyper::BodyExt;
 use model::ImageMacro;
-use resources::{list_fonts, list_templates};
+use resources::{list_fonts, list_templates, ThreadSafeCache};
 
 
 pub struct Rofl;
@@ -99,41 +100,36 @@ impl Rofl {
     /// Handle the template listing request.
     fn handle_list_templates(&self, _: Request) -> <Self as Service>::Future {
         let template_names = list_templates();
-        let response = Response::new()
-            .with_body(json!(template_names).to_string());
+        let response = json_response(json!(template_names));
         future::ok(response).boxed()
     }
 
     /// Handle the font listing request.
     fn handle_list_fonts(&self, _: Request) -> <Self as Service>::Future {
         let font_names = list_fonts();
-        let response = Response::new()
-            .with_body(json!(font_names).to_string());
+        let response = json_response(json!(font_names));
         future::ok(response).boxed()
     }
 
     /// Handle the server statistics request.
     fn handle_stats(&self, _: Request) -> <Self as Service>::Future {
-        let template_capacity = CAPTIONER.cache().templates().capacity();
-        let font_capacity = CAPTIONER.cache().fonts().capacity();
-
         let stats = json!({
             "cache": {
-                "templates": {
-                    "capacity": template_capacity,
-                    "fill_rate": CAPTIONER.cache().templates().len() as f32 / template_capacity as f32,
-                    "misses": CAPTIONER.cache().templates().misses(),
-                    "hits": CAPTIONER.cache().templates().hits(),
-                },
-                "fonts": {
-                    "capacity": font_capacity,
-                    "fill_rate": CAPTIONER.cache().fonts().len() as f32 / font_capacity as f32,
-                    "misses": CAPTIONER.cache().fonts().misses(),
-                    "hits": CAPTIONER.cache().fonts().hits(),
-                }
+                "templates": cache_stats(CAPTIONER.cache().templates()),
+                "fonts": cache_stats(CAPTIONER.cache().fonts()),
             }
         });
-        future::ok(Response::new().with_body(stats.to_string())).boxed()
+        return future::ok(json_response(stats)).boxed();
+
+        fn cache_stats<K: Eq + Hash, V>(cache: &ThreadSafeCache<K, V>) -> Json {
+            let capacity = cache.capacity();
+            json!({
+                "capacity": capacity,
+                "fill_rate": cache.len() as f32 / capacity as f32,
+                "misses": cache.misses(),
+                "hits": cache.hits(),
+            })
+        }
     }
 }
 
@@ -152,11 +148,15 @@ impl Rofl {
 
 // Utility functions
 
+/// Create a JSON response.
+fn json_response(json: Json) -> Response {
+    Response::new()
+        .with_header(ContentType(mime!(Application/Json)))
+        .with_body(json.to_string())
+}
+
 /// Create an erroneous JSON response.
 fn error_response<T: ToString>(status_code: StatusCode, message: T) -> Response {
-    let message = message.to_string();
-    Response::new()
+    json_response(json!({"error": message.to_string()}))
         .with_status(status_code)
-        .with_header(ContentType(mime!(Application/Json)))
-        .with_body(json!({"error": message}).to_string())
 }
