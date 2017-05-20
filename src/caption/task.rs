@@ -6,6 +6,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
+use mime::Mime;
 use rusttype::{point, Rect, vector};
 
 use model::{Caption, ImageMacro};
@@ -16,7 +17,28 @@ use super::text::{self, Style};
 
 
 /// Output of the captioning process.
-pub type CaptionOutput = (ImageFormat, Vec<u8>);
+#[derive(Clone, Debug)]
+pub struct CaptionOutput {
+    pub format: ImageFormat,
+    pub bytes: Vec<u8>,
+}
+
+impl CaptionOutput {
+    pub fn new(format: ImageFormat, bytes: Vec<u8>) -> Self {
+        CaptionOutput{format, bytes}
+    }
+}
+
+impl CaptionOutput {
+    pub fn mime_type(&self) -> Option<Mime> {
+        match self.format {
+            ImageFormat::GIF => Some(mime!(Image/Gif)),
+            ImageFormat::JPEG => Some(mime!(Image/Jpeg)),
+            ImageFormat::PNG => Some(mime!(Image/Png)),
+            _ => None,
+        }
+    }
+}
 
 
 /// Represents a single captioning task and contains all the relevant logic.
@@ -66,7 +88,7 @@ impl CaptionTask {
         }
 
         let bytes = self.encode_result(images, &*template)?;
-        let output = (template.preferred_format(), bytes);
+        let output = CaptionOutput::new(template.preferred_format(), bytes);
         Ok(output)
     }
 

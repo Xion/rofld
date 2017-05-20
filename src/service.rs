@@ -2,12 +2,12 @@
 
 use std::error::Error;
 use std::hash::Hash;
+use std::time::{Duration, SystemTime};
 
 use futures::{BoxFuture, future, Future};
 use hyper::{self, Get, Post, StatusCode};
-use hyper::header::ContentType;
+use hyper::header::{Expires, ContentLength, ContentType};
 use hyper::server::{Service, Request, Response};
-use image:: ImageFormat;
 use serde_json::{self, Value as Json};
 use serde_qs;
 
@@ -27,23 +27,39 @@ impl Service for Rofl {
 
     fn call(&self, req: Request) -> Self::Future {
         // TODO: log the request after the response is served, in Common Log Format;
-        // need to retain the request info first, and extract a handle() method
-        // returning Response
+        // need to retain the request info first
         self.log(&req);
-
+        self.handle(req).map(|mut resp| {
+            Self::fix_headers(&mut resp);
+            debug!("HTTP {}, sent {} bytes (ContentType: {})",
+                resp.status(),
+                if resp.headers().has::<ContentLength>() {
+                    format!("{}", **resp.headers().get::<ContentLength>().unwrap())
+                } else {
+                    "unknown number of".into()
+                },
+                resp.headers().get::<ContentType>().unwrap());
+            resp
+        }).boxed()
+    }
+}
+impl Rofl {
+    fn handle(&self, req: Request) -> <Rofl as Service>::Future {
         match (req.method(), req.path()) {
-            (_, "/caption") => return self.handle_caption(req),
-            (&Get, "/templates") => return self.handle_list_templates(req),
-            (&Get, "/fonts") => return self.handle_list_fonts(req),
-            (&Get, "/stats") => return self.handle_stats(req),
-            _ => {},
+            (_, "/caption") => self.handle_caption(req),
+            (&Get, "/templates") => self.handle_list_templates(req),
+            (&Get, "/fonts") => self.handle_list_fonts(req),
+            (&Get, "/stats") => self.handle_stats(req),
+            _ => self.handle_404(req),
         }
+    }
 
+    fn handle_404(&self, req: Request) -> <Rofl as Service>::Future {
         debug!("Path {} doesn't match any endpoint", req.path());
-        let error_resp = match (req.method(), req.path()) {
-            _ => Response::new().with_status(StatusCode::NotFound),
-        };
-        future::ok(error_resp).boxed()
+        let response = Response::new().with_status(StatusCode::NotFound)
+            .with_header(ContentType::plaintext())
+            .with_header(ContentLength(0));
+        future::ok(response).boxed()
     }
 }
 
@@ -55,12 +71,10 @@ impl Rofl {
         body.into_bytes().and_then(move |bytes| {
             let parsed_im: Result<_, Box<Error>> = match method {
                 Get => {
-                    if let Some(query) = url.query() {
-                        trace!("Caption request query string: {}", query);
-                    } else {
-                        trace!("No query string found in caption request");
-                    }
-                    let query = url.query().unwrap_or("");
+                    let query = match url.query() {
+                        Some(q) => { trace!("Caption request query string: {}", q); q }
+                        None => { trace!("No query string found in caption request"); "" }
+                    };
                     debug!("Decoding image macro spec from {} bytes of query string",
                         query.len());
                     serde_qs::from_str(query).map_err(Into::into)
@@ -72,8 +86,10 @@ impl Rofl {
                 },
                 m => {
                     warn!("Unsupported HTTP method for caption request: {}", m);
-                    return future::ok(
-                        Response::new().with_status(StatusCode::MethodNotAllowed)).boxed();
+                    let response = Response::new().with_status(StatusCode::MethodNotAllowed)
+                        .with_header(ContentType::plaintext())
+                        .with_header(ContentLength(0));
+                    return future::ok(response).boxed();
                 },
             };
 
@@ -89,18 +105,17 @@ impl Rofl {
             debug!("Decoded {:?}", im);
 
             CAPTIONER.render(im)
-                .map(|(image_format, image_bytes)| {
-                    let mime_type = match image_format {
-                        ImageFormat::GIF => mime!(Image/Gif),
-                        ImageFormat::JPEG => mime!(Image/Jpeg),
-                        ImageFormat::PNG => mime!(Image/Png),
-                        f => return error_response(
+                .map(|out| {
+                    let mime_type = match out.mime_type() {
+                        Some(mt) => mt,
+                        None => return error_response(
                             StatusCode::InternalServerError,
-                            format!("invalid image macro template format: {:?}", f)),
+                            format!("invalid template format: {:?}", out.format)),
                     };
                     Response::new()
                         .with_header(ContentType(mime_type))
-                        .with_body(image_bytes)
+                        .with_header(ContentLength(out.bytes.len() as u64))
+                        .with_body(out.bytes)
                 })
                 .or_else(|e| future::ok(
                     error_response(e.status_code(), format!("{}", e))
@@ -156,6 +171,18 @@ impl Rofl {
             req.query().map(|q| format!("?{}", q)).unwrap_or_else(String::new),
             req.version());
     }
+
+    /// Fix headers in the response, providing default values where necessary.
+    fn fix_headers(resp: &mut Response) {
+        if !resp.headers().has::<ContentType>() {
+            resp.headers_mut().set(ContentType::octet_stream());
+        }
+        if !resp.headers().has::<Expires>() {
+            let century = Duration::from_secs(100 * 365 * 24 * 60 * 60);
+            let far_future = SystemTime::now() + century;
+            resp.headers_mut().set(Expires(far_future.into()));
+        }
+    }
 }
 
 
@@ -163,9 +190,11 @@ impl Rofl {
 
 /// Create a JSON response.
 fn json_response(json: Json) -> Response {
+    let body = json.to_string();
     Response::new()
         .with_header(ContentType(mime!(Application/Json)))
-        .with_body(json.to_string())
+        .with_header(ContentLength(body.len() as u64))
+        .with_body(body)
 }
 
 /// Create an erroneous JSON response.

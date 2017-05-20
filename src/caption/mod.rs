@@ -142,10 +142,10 @@ impl Captioner {
             };
             move || {
                 match task.perform() {
-                    Ok((if_, ib)) => {
+                    Ok(out) => {
                         debug!("Successfully rendered {} as {:?}, final result size: {} bytes",
-                            im_repr, if_, ib.len());
-                        future::ok((if_, ib))
+                            im_repr, out.format, out.bytes.len());
+                        future::ok(out)
                     },
                     Err(e) => {
                         error!("Failed to render image macro {}: {}", im_repr, e);
