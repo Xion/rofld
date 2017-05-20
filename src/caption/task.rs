@@ -15,6 +15,10 @@ use super::error::CaptionError;
 use super::text::{self, Style};
 
 
+/// Output of the captioning process.
+pub type CaptionOutput = (ImageFormat, Vec<u8>);
+
+
 /// Represents a single captioning task and contains all the relevant logic.
 ///
 /// This is a separate struct so that the rendering state (e.g. the cache)
@@ -36,7 +40,7 @@ impl Deref for CaptionTask {
 
 impl CaptionTask {
     /// Perform the captioning task.
-    pub fn perform(self) -> Result<Vec<u8>, CaptionError> {
+    pub fn perform(self) -> Result<CaptionOutput, CaptionError> {
         debug!("Rendering {:?}", self.image_macro);
 
         let template = self.cache.get_template(&self.template)
@@ -60,7 +64,10 @@ impl CaptionTask {
             }
             images.push(img);
         }
-        self.encode_result(images, &*template)
+
+        let bytes = self.encode_result(images, &*template)?;
+        let output = (template.preferred_format(), bytes);
+        Ok(output)
     }
 
     /// Resize a template image to fit the desired dimensions.

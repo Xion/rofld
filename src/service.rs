@@ -7,6 +7,7 @@ use futures::{BoxFuture, future, Future};
 use hyper::{self, Get, Post, StatusCode};
 use hyper::header::ContentType;
 use hyper::server::{Service, Request, Response};
+use image:: ImageFormat;
 use serde_json::{self, Value as Json};
 use serde_qs;
 
@@ -54,8 +55,12 @@ impl Rofl {
         body.into_bytes().and_then(move |bytes| {
             let parsed_im: Result<_, Box<Error>> = match method {
                 Get => {
+                    if let Some(query) = url.query() {
+                        trace!("Caption request query string: {}", query);
+                    } else {
+                        trace!("No query string found in caption request");
+                    }
                     let query = url.query().unwrap_or("");
-                    trace!("Caption request query string: {}", query);
                     debug!("Decoding image macro spec from {} bytes of query string",
                         query.len());
                     serde_qs::from_str(query).map_err(Into::into)
@@ -84,9 +89,17 @@ impl Rofl {
             debug!("Decoded {:?}", im);
 
             CAPTIONER.render(im)
-                .map(|image_bytes| {
+                .map(|(image_format, image_bytes)| {
+                    let mime_type = match image_format {
+                        ImageFormat::GIF => mime!(Image/Gif),
+                        ImageFormat::JPEG => mime!(Image/Jpeg),
+                        ImageFormat::PNG => mime!(Image/Png),
+                        f => return error_response(
+                            StatusCode::InternalServerError,
+                            format!("invalid image macro template format: {:?}", f)),
+                    };
                     Response::new()
-                        .with_header(ContentType(mime!(Image/Png)))
+                        .with_header(ContentType(mime_type))
                         .with_body(image_bytes)
                 })
                 .or_else(|e| future::ok(

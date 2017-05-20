@@ -7,6 +7,9 @@
 //! Error { err: "invalid type: string \"top\", expected enum VAlign" }
 //! ```
 
+// TODO: delete this module and use #[derive(Deserialize)] when
+// https://github.com/samscott89/serde_qs/issues/6 is fixed
+
 use std::fmt;
 
 use serde::de::{self, Deserialize, Unexpected, Visitor};

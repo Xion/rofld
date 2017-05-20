@@ -18,7 +18,7 @@ use args::Resource;
 use model::ImageMacro;
 use resources::{Cache, list_fonts, list_templates};
 use self::error::CaptionError;
-use self::task::CaptionTask;
+use self::task::{CaptionOutput, CaptionTask};
 
 
 /// Renders image macros into captioned images.
@@ -116,7 +116,7 @@ impl Captioner {
 impl Captioner {
     /// Render an image macro as PNG.
     /// The rendering is done in a separate thread.
-    pub fn render(&self, im: ImageMacro) -> BoxFuture<Vec<u8>, CaptionError> {
+    pub fn render(&self, im: ImageMacro) -> BoxFuture<CaptionOutput, CaptionError> {
         let pool = match self.pool.try_lock() {
             Ok(p) => p,
             Err(TryLockError::WouldBlock) => {
@@ -142,10 +142,10 @@ impl Captioner {
             };
             move || {
                 match task.perform() {
-                    Ok(ib) => {
-                        debug!("Successfully rendered {}, final result size: {} bytes",
-                            im_repr, ib.len());
-                        future::ok(ib)
+                    Ok((if_, ib)) => {
+                        debug!("Successfully rendered {} as {:?}, final result size: {} bytes",
+                            im_repr, if_, ib.len());
+                        future::ok((if_, ib))
                     },
                     Err(e) => {
                         error!("Failed to render image macro {}: {}", im_repr, e);
