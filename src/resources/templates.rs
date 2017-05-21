@@ -1,5 +1,6 @@
 //! Module handling image macro templates.
 
+use std::collections::{HashSet, HashMap};
 use std::env;
 use std::fmt;
 use std::iter;
@@ -15,6 +16,16 @@ use util::animated_gif::{self, GifAnimation, is_gif, is_gif_animated};
 /// Default image format to use when encoding image macros.
 pub const DEFAULT_IMAGE_FORMAT: ImageFormat = ImageFormat::PNG;
 
+lazy_static! {
+    /// Map of template file extensions to supported image formats.
+    static ref IMAGE_FORMAT_EXTENSIONS: HashMap<&'static str, ImageFormat> = hashmap!{
+        "gif" => ImageFormat::GIF,
+        "jpeg" => ImageFormat::JPEG,
+        "jpg" => ImageFormat::JPEG,
+        "png" => ImageFormat::PNG,
+    };
+}
+
 
 /// Represents an image macro template.
 #[derive(Clone)]
@@ -29,17 +40,9 @@ impl Template {
     /// Create the template for an image loaded from a file.
     /// Image format is figured out from the file extension.
     pub fn for_image<P: AsRef<Path>>(img: DynamicImage, path: P) -> Self {
-        let path = path.as_ref();
-        let img_format = path.extension().and_then(|s| s.to_str()).and_then(|ext| {
-            let ext = ext.to_lowercase();
-            match &ext[..] {
-                "jpg" | "jpeg" => Some(ImageFormat::JPEG),
-                "png" => Some(ImageFormat::PNG),
-                "gif" => Some(ImageFormat::GIF),
-                _ => None,
-            }
-        }).unwrap_or(DEFAULT_IMAGE_FORMAT);
-
+        let img_format = extension(path)
+            .and_then(|ext| IMAGE_FORMAT_EXTENSIONS.get(ext.as_str()).map(|f| *f))
+            .unwrap_or(DEFAULT_IMAGE_FORMAT);
         Template::Image(img, img_format)
     }
 
@@ -148,16 +151,8 @@ lazy_static! {
 pub fn load(template: &str) -> Option<Template> {
     debug!("Loading image macro template `{}`", template);
 
-    let template_glob = &format!(
-        "{}", TEMPLATE_DIR.join(template.to_owned() + ".*").display());
-    let mut template_iter = match glob::glob(template_glob) {
-        Ok(it) => it,
-        Err(e) => {
-            error!("Failed to glob over template files: {}", e);
-            return None;
-        },
-    };
-    let template_path = try_opt!(template_iter.next().and_then(|p| p.ok()));
+    // TODO: what about ambiguous file stems? (same template name, different extension)
+    let template_path = try_opt!(glob_templates(template).next());
     trace!("Path to image for template {} is {}", template, template_path.display());
 
     match Template::try_from(&template_path) {
@@ -179,16 +174,48 @@ pub fn load(template: &str) -> Option<Template> {
 /// List all available template names.
 pub fn list() -> Vec<String> {
     debug!("Listing all available templates...");
-
-    let pattern = format!("{}", TEMPLATE_DIR.join("*.*").display());
-    trace!("Globbing with {}", pattern);
-    let templates = glob::glob(&pattern).unwrap()
-        .filter_map(Result::ok)  // TODO: report errors about this
-        .fold(vec![], |mut ts, t| {
+    let templates = glob_templates("*")
+        .fold(HashSet::new(), |mut ts, t| {
             let name = t.file_stem().unwrap().to_str().unwrap().to_owned();
-            ts.push(name); ts
+            ts.insert(name); ts
         });
 
     debug!("{} template(s) found", templates.len());
-    templates
+    let mut result: Vec<_> = templates.into_iter().collect();
+    result.sort();
+    result
+}
+
+
+// Utility functions
+
+/// Yield paths to template files that have the given file stem.
+fn glob_templates(stem: &str) -> Box<Iterator<Item=PathBuf>> {
+    let file_part = format!("{}.*", stem);
+    let pattern = format!("{}", TEMPLATE_DIR.join(file_part).display());
+    trace!("Globbing with {}", pattern);
+
+    let glob_iter = match glob::glob(&pattern) {
+        Ok(it) => it,
+        Err(e) => {
+            error!("Failed to glob over template files: {}", e);
+            return Box::new(iter::empty());
+        },
+    };
+
+    // We manually filter out unsupported file extensions because the `glob` crate
+    // doesn't support patterns like foo.{gif|png} (i.e. with braces).
+    Box::new(glob_iter
+        .filter_map(Result::ok)  // TODO: report errors about this
+        .filter(|f| {
+            let ext = extension(f);
+            IMAGE_FORMAT_EXTENSIONS.keys()
+                .any(|&e| Some(e) == ext.as_ref().map(|e| e.as_str()))
+        }))
+}
+
+/// Get the (useful part of) file extension from the path.
+fn extension<P: AsRef<Path>>(path: P) -> Option<String> {
+    path.as_ref().extension().and_then(|e| e.to_str())
+        .map(|s| s.trim().to_lowercase())
 }

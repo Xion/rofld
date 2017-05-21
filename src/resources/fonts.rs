@@ -1,5 +1,6 @@
 //! Module for loading fonts used in image macros.
 
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io::{BufReader, Read};
@@ -14,12 +15,14 @@ lazy_static! {
         env::current_dir().unwrap().join("data").join("fonts");
 }
 
+const FILE_EXTENSION: &'static str = "ttf";
+
 
 /// Load the font with given name.
 pub fn load<'f>(name: &str) -> Option<Font<'f>> {
     debug!("Loading font `{}`...", name);
 
-    let path = FONT_DIR.join(format!("{}.ttf", name));
+    let path = FONT_DIR.join(format!("{}.{}", name, FILE_EXTENSION));
     let file = try_opt!(fs::File::open(&path).map_err(|e| {
         error!("Failed to open font file `{}`: {}", path.display(), e); e
     }).ok());
@@ -57,15 +60,18 @@ pub fn load<'f>(name: &str) -> Option<Font<'f>> {
 pub fn list() -> Vec<String> {
     debug!("Listing all available fonts...");
 
-    let pattern = format!("{}", FONT_DIR.join("*.*").display());
+    let pattern = format!("{}",
+        FONT_DIR.join(&format!("*.{}", FILE_EXTENSION)).display());
     trace!("Globbing with {}", pattern);
     let fonts = glob::glob(&pattern).unwrap()
         .filter_map(Result::ok)  // TODO: report errors about this
-        .fold(vec![], |mut ts, t| {
+        .fold(HashSet::new(), |mut ts, t| {
             let name = t.file_stem().unwrap().to_str().unwrap().to_owned();
-            ts.push(name); ts
+            ts.insert(name); ts
         });
 
     debug!("{} font(s) found", fonts.len());
-    fonts
+    let mut result: Vec<_> = fonts.into_iter().collect();
+    result.sort();
+    result
 }
