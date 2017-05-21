@@ -5,12 +5,12 @@ use std::fmt;
 use std::mem;
 
 use itertools::Itertools;
-use serde::de::{self, Deserialize, IntoDeserializer, Visitor};
+use serde::de::{self, Deserialize, IntoDeserializer, Visitor, Unexpected};
 use unreachable::unreachable;
 
 use super::super::{Caption, Color, ImageMacro, VAlign,
                    DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN,
-                   MAX_CAPTION_COUNT};
+                   MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT};
 
 
 /// Publicly mentioned fields of ImageMacro.
@@ -60,19 +60,34 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     if template.is_some() {
                         return Err(de::Error::duplicate_field("template"));
                     }
-                    template = Some(map.next_value()?);
+                    let value: String = map.next_value()?;
+                    if value.is_empty() {
+                        return Err(de::Error::invalid_value(
+                            Unexpected::Str(&value), &"non-empty string"));
+                    }
+                    template = Some(value);
                 }
                 "width" => {
                     if width.is_some() {
                         return Err(de::Error::duplicate_field("width"));
                     }
-                    width = Some(map.next_value()?);
+                    let value = map.next_value()?;
+                    if value > MAX_WIDTH {
+                        return Err(de::Error::custom(
+                            format_args!("width is too large: {} > {}", value, MAX_WIDTH)));
+                    }
+                    width = Some(value);
                 }
                 "height" => {
                     if height.is_some() {
                         return Err(de::Error::duplicate_field("height"));
                     }
-                    height = Some(map.next_value()?);
+                    let value = map.next_value()?;
+                    if value > MAX_HEIGHT {
+                        return Err(de::Error::custom(
+                            format_args!("height is too large: {} > {}", value, MAX_HEIGHT)));
+                    }
+                    height = Some(value);
                 }
 
                 // Simplified way of defining top/middle/bottom captions.

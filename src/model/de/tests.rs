@@ -424,6 +424,14 @@ fn qs_simple_captions() {
 }
 
 #[test]
+fn qs_simple_captions_with_color() {
+    let input = "template=fullofstars&\
+        top_text=Oh%20my%20god&top_color=0xffff00&\
+        bottom_text=It%27s%20full%20of%20colors&bottom_color=0x00ffff";
+    assert_that!(parse_qs(input)).is_ok().is_equal_to(&*FULL_OF_COLORS);
+}
+
+#[test]
 fn qs_full_captions_with_just_text() {
     let input = "template=zoidberg&captions[0]=Need%20a%20meme?&captions[1]=Why%20not%20Zoidberg?";
     assert_that!(parse_qs(input)).is_ok().is_equal_to(&*ZOIDBERG);
@@ -435,6 +443,16 @@ fn qs_full_captions_with_valign() {
         captions[0][valign]=top&captions[0][text]=Need%20a%20meme?&\
         captions[1][valign]=bottom&captions[1][text]=Why%20not%20Zoidberg?";
     assert_that!(parse_qs(input)).is_ok().is_equal_to(&*ZOIDBERG);
+}
+
+#[test]
+fn qs_full_captions_with_valign_and_color() {
+    let input = "template=fullofstars&\
+        captions[0][text]=Oh%20my%20god&\
+            captions[0][color]=0xffff00&captions[0][valign]=top&\
+        captions[1][text]=It%27s%20full%20of%20colors&\
+            captions[1][color]=0x00ffff&captions[1][valign]=bottom";
+    assert_that!(parse_qs(input)).is_ok().is_equal_to(&*FULL_OF_COLORS);
 }
 
 
@@ -450,6 +468,23 @@ lazy_static! {
             },
             Caption{
                 text: "Why not Zoidberg?".into(),
+                ..Caption::at(VAlign::Bottom)
+            },
+        ],
+        ..Default::default()
+    };
+
+    static ref FULL_OF_COLORS: ImageMacro = ImageMacro{
+        template: "fullofstars".into(),
+        captions: vec![
+            Caption{
+                text: "Oh my god".into(),
+                color: Color(255, 255, 0),
+                ..Caption::at(VAlign::Top)
+            },
+            Caption{
+                text: "It's full of colors".into(),
+                color: Color(0, 255, 255),
                 ..Caption::at(VAlign::Bottom)
             },
         ],

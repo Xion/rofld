@@ -4,7 +4,7 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Visitor, Unexpected};
 
-use super::super::{Caption, DEFAULT_FONT, DEFAULT_HALIGN, DEFAULT_COLOR};
+use super::super::{Caption, DEFAULT_FONT, DEFAULT_HALIGN, DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR};
 
 
 const FIELDS: &'static [&'static str] = &[
@@ -77,7 +77,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
                     color = Some(map.next_value()?);
                 }
                 "outline" => {
-                    // If "outline" is not provided, the inversion of "color" is used.
+                    // If "outline" is not provided, the default outline color is used.
                     // It can also be provided but null, in which case there shall be
                     // no text outline.
                     if outline.is_some() {
@@ -94,7 +94,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let valign = valign.ok_or_else(|| de::Error::missing_field("valign"))?;
         let font = font.unwrap_or(DEFAULT_FONT).into();
         let color = color.unwrap_or(DEFAULT_COLOR);
-        let outline = outline.unwrap_or_else(|| Some(color.invert()));
+        let outline = outline.unwrap_or_else(|| Some(DEFAULT_OUTLINE_COLOR));
 
         Ok(Caption{text, halign, valign, font, color, outline})
     }
@@ -105,7 +105,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
 mod tests {
     use serde_json::from_value as from_json;
     use spectral::prelude::*;
-    use ::model::{Color, Caption, DEFAULT_COLOR};
+    use ::model::{Color, Caption, DEFAULT_OUTLINE_COLOR};
 
     #[test]
     fn required_fields() {
@@ -122,14 +122,19 @@ mod tests {
     fn default_outline() {
         let caption = json!({"text": "Test", "valign": "top"});
         assert_that!(from_json::<Caption>(caption)).is_ok()
-            .map(|c| &c.outline).is_some().is_equal_to(&DEFAULT_COLOR.invert());
+            .map(|c| &c.outline).is_some().is_equal_to(&DEFAULT_OUTLINE_COLOR);
     }
 
+    /// Test that the default outline color is used even when custom "color" is provided.
+    ///
+    /// Historically, we would invert "color" in this case,
+    /// but this is too cumbersome to keep consistent between different ways both colors
+    /// can be provided in ImageMacro.
     #[test]
-    fn inverted_color_outline() {
+    fn default_outline_around_non_default_color() {
         let caption = json!({"text": "Test", "valign": "top", "color": [0, 0, 255]});
         assert_that!(from_json::<Caption>(caption)).is_ok()
-            .map(|c| &c.outline).is_some().is_equal_to(&Color(0xff, 0xff, 0x0));
+            .map(|c| &c.outline).is_some().is_equal_to(&DEFAULT_OUTLINE_COLOR);
     }
 
     #[test]
