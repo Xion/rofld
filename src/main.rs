@@ -193,7 +193,11 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
     }
 
     server.shutdown_timeout(opts.shutdown_timeout);
-    debug!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
+    if opts.shutdown_timeout.as_secs() > 0 {
+        debug!("Shutdown timeout set to {} secs", opts.shutdown_timeout.as_secs());
+    } else {
+        debug!("Shutdown timeout disabled.");
+    }
 
     CAPTIONER.set_task_timeout(opts.request_timeout);
     if opts.request_timeout.as_secs() > 0 {

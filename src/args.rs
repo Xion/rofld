@@ -354,7 +354,10 @@ fn create_parser<'p>() -> Parser<'p> {
             .long("shutdown-timeout")
             .value_name("SECS")
             .required(false)
-            .default_value(to_static_str!(DEFAULT_SHUTDOWN_TIMEOUT))
+            .default_value(to_static_str!(
+                // Disable waiting for server to shut down in debug mode by default.
+                if cfg!(debug_assertions) { 0 } else { DEFAULT_SHUTDOWN_TIMEOUT }
+            ))
             .help("Time to wait for remaining connections during shutdown (secs)"))
 
         // Verbosity flags.
