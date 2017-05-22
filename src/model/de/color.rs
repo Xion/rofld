@@ -1,12 +1,11 @@
 //! Deserializer for the Color type.
 
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
 
 use css_color_parser::{Color as CssColor, ColorParseError as CssColorParseError};
-use serde::de::{self, Deserialize, Deserializer, IntoDeserializer, Visitor};
+use serde::de::{self, Deserialize, Visitor};
 
 use super::super::Color;
 
@@ -18,26 +17,7 @@ impl<'de> Deserialize<'de> for Color {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>
     {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Lookahead {
-            String(String),
-            Array(Vec<u8>),
-            Map(HashMap<String, u8>),
-        }
-
-        return match Lookahead::deserialize(deserializer)? {
-            Lookahead::String(s) => consume(s),
-            Lookahead::Array(v) => consume(v),
-            Lookahead::Map(m) => consume(m),
-        };
-
-        fn consume<'de, T, E>(x: T) -> Result<Color, E>
-            where T: IntoDeserializer<'de, E>, E: de::Error
-        {
-            x.into_deserializer()
-                .deserialize_tuple_struct("Color", FIELDS.len(), ColorVisitor)
-        }
+        deserializer.deserialize_any(ColorVisitor)
     }
 }
 

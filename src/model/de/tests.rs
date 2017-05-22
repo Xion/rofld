@@ -1,4 +1,4 @@
-//! Tests for deserializing ImageMacros.
+//! "End-to"end" tests for deserializing ImageMacros from all supported input formats.
 
 use serde_json::{self, from_value as from_json, Value};
 use serde_qs::{self, from_str as from_qs};

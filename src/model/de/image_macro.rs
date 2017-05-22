@@ -14,6 +14,9 @@ use super::super::{Caption, Color, ImageMacro, VAlign,
                    MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT, MAX_CAPTION_LENGTH};
 
 
+// TODO: test Deserialize impls of ImageMacro, Caption, and Color using serde_test
+
+
 /// Publicly mentioned fields of ImageMacro.
 const FIELDS: &'static [&'static str] = &[
     "template", "width", "height", "captions",
@@ -276,7 +279,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
 // However, we need to remember where the Captions originally came from
 // in order to possibly pick the correct vertical alignment for them.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum CaptionSource { Text, Full }
+enum CaptionSource { Text, Map }
 struct SourcedCaption(CaptionSource, Caption);
 
 impl From<SourcedCaption> for (CaptionSource, Caption) {
@@ -284,35 +287,49 @@ impl From<SourcedCaption> for (CaptionSource, Caption) {
         (sc.0, sc.1)
     }
 }
+
 impl<'de> Deserialize<'de> for SourcedCaption {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>
     {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Lookahead {
-            FullCaption(Caption),
-            TextOnly(String),
-        }
+        deserializer.deserialize_any(SourcedCaptionVisitor)
+    }
+}
 
-        match Lookahead::deserialize(deserializer)? {
-            Lookahead::FullCaption(c) => Ok(SourcedCaption(CaptionSource::Full, c)),
-            Lookahead::TextOnly(s) => {
-                // Create Caption from just a string.
-                //
-                // The vertical align of such caption is intentionally left undefined,
-                // as it should be filled in by the ImageMacro deserializer.
-                let caption = Caption{
-                    text: s,
-                    halign: DEFAULT_HALIGN,
-                    valign: unsafe { mem::uninitialized() },
-                    font: DEFAULT_FONT.into(),
-                    color: DEFAULT_COLOR,
-                    outline: Some(DEFAULT_OUTLINE_COLOR),
-                };
-                Ok(SourcedCaption(CaptionSource::Text, caption))
-            },
-        }
+struct SourcedCaptionVisitor;
+impl<'de> Visitor<'de> for SourcedCaptionVisitor {
+    type Value = SourcedCaption;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "text or image macro's caption representation")
+    }
+
+    /// Deserialize Caption from a string.
+    ///
+    /// The vertical align of such caption is intentionally left undefined,
+    /// as it should be filled in by the ImageMacro deserializer.
+    fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
+        let caption = Caption{
+            text: text.to_owned(),
+            halign: DEFAULT_HALIGN,
+            valign: unsafe { mem::uninitialized() },
+            font: DEFAULT_FONT.into(),
+            color: DEFAULT_COLOR,
+            outline: Some(DEFAULT_OUTLINE_COLOR),
+        };
+        let result = SourcedCaption(CaptionSource::Text, caption);
+        Ok(result)
+    }
+
+    fn visit_map<V>(self, map: V) -> Result<Self::Value, V::Error>
+        where V: de::MapAccess<'de>
+    {
+        // Use the default way of deserializing Caption from a map.
+        let inner_de = de::value::MapAccessDeserializer::new(map);
+        let caption = Deserialize::deserialize(inner_de)?;
+
+        let result = SourcedCaption(CaptionSource::Map, caption);
+        Ok(result)
     }
 }
 

@@ -43,6 +43,7 @@ rusttype = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
+# TODO: change to crates.io when 0.2 is published
 serde_qs = { git = "https://github.com/samscott89/serde_qs.git" }
 slog = "1.5.2"
 slog-envlogger = "0.5"
