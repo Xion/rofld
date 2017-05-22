@@ -86,7 +86,7 @@ fn simple_caption_with_invalid_alignment() {
     });
     assert_that!(parse_json(input)).is_err().map(|e| {
         let msg = format!("{}", e);
-        assert_that!(msg).contains("invalid value");
+        assert_that!(msg).contains("unknown variant");
         assert_that!(msg).contains("justify");
         e
     });
@@ -501,7 +501,7 @@ fn parse_json(json: Value) -> Result<ImageMacro, serde_json::Error> {
     from_json(json)
 }
 
-fn parse_qs(qs: &str) -> Result<ImageMacro, serde_qs::de::Error> {
+fn parse_qs(qs: &str) -> Result<ImageMacro, serde_qs::Error> {
     // Ditto.
     from_qs(qs)
 }

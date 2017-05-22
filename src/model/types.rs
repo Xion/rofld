@@ -30,7 +30,8 @@ pub struct Caption {
 macro_attr! {
     /// Horizontal alignment of text within a rectangle.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-             IterVariants!(HAligns))]
+             Deserialize, IterVariants!(HAligns))]
+    #[serde(rename_all = "lowercase")]
     pub enum HAlign {
         Left,
         Center,
@@ -41,7 +42,8 @@ macro_attr! {
 macro_attr! {
     /// Vertical alignment of text within a rectangle.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-             IterVariants!(VAligns))]
+             Deserialize, IterVariants!(VAligns))]
+    #[serde(rename_all = "lowercase")]
     pub enum VAlign {
         Top,
         Middle,
