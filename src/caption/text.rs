@@ -1,15 +1,32 @@
 //! Module responsible for rendering text.
 
+use std::collections::HashSet;
 use std::fmt;
 use std::ops::{Add, Div, Sub};
 
 use image::{DynamicImage, GenericImage};
 use num::One;
 use regex::Regex;
-use rusttype::{Font, point, Point, Rect, Scale};
+use rusttype::{GlyphId, Font, point, Point, Rect, Scale};
 use unreachable::unreachable;
 
 use model::{Color, HAlign, VAlign};
+
+
+/// Check if given font has all the glyphs for given text.
+pub fn check<'f, 's>(font: &'f Font<'f>, text: &'s str) {
+    let mut missing = HashSet::new();
+    for ch in text.chars() {
+        let glyph = font.glyph(ch);
+        if glyph.is_none() || glyph.unwrap().id() == GlyphId(0) {
+            missing.insert(ch as u32);
+        }
+    }
+    if !missing.is_empty() {
+        warn!("Missing glyphs for {} codepoint(s): {}", missing.len(),
+            missing.into_iter().map(|c| format!("{:#x}", c)).collect::<Vec<_>>().join(", "));
+    }
+}
 
 
 /// Alignment of text within a rectangle.

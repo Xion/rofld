@@ -52,6 +52,7 @@ tokio-signal = "0.1"
 tokio-timer = "0.1"
 time = "0.1"
 try_opt = "*"
+unicode-normalization = "0.1"
 unreachable = "0.1"
 
 [dev-dependencies]

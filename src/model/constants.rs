@@ -23,3 +23,6 @@ pub const MAX_CAPTION_COUNT: usize = 16;
 pub const MAX_WIDTH: u32 = 1024;
 /// Maximum height of the result image.
 pub const MAX_HEIGHT: u32 = 1024;
+
+/// Maximum length (in Unicode codepoints) of a single caption text.
+pub const MAX_CAPTION_LENGTH: usize = 256;

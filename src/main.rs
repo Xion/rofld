@@ -40,6 +40,7 @@
              extern crate tokio_timer;
              extern crate time;
 #[macro_use] extern crate try_opt;
+             extern crate unicode_normalization;
              extern crate unreachable;
 
 // `slog` must precede `log` in declarations here, because we want to simultaneously:

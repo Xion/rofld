@@ -152,6 +152,10 @@ impl CaptionTask {
         let font = self.cache.get_font(&caption.font)
             .ok_or_else(|| CaptionError::Font(caption.font.clone()))?;
 
+        trace!("Checking if font `{}` has all glyphs for caption: {}",
+            caption.font, caption.text);
+        text::check(&*font, &caption.text);
+
         let (width, height) = img.dimensions();
         let width = width as f32;
         let height = height as f32;

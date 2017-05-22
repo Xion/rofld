@@ -6,11 +6,12 @@ use std::mem;
 
 use itertools::Itertools;
 use serde::de::{self, Deserialize, IntoDeserializer, Visitor, Unexpected};
+use unicode_normalization::UnicodeNormalization;
 use unreachable::unreachable;
 
 use super::super::{Caption, Color, ImageMacro, VAlign,
                    DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN,
-                   MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT};
+                   MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT, MAX_CAPTION_LENGTH};
 
 
 /// Publicly mentioned fields of ImageMacro.
@@ -61,6 +62,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         return Err(de::Error::duplicate_field("template"));
                     }
                     let value: String = map.next_value()?;
+                    trace!("ImageMacro::template = {}", value);
                     if value.is_empty() {
                         return Err(de::Error::invalid_value(
                             Unexpected::Str(&value), &"non-empty string"));
@@ -72,6 +74,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         return Err(de::Error::duplicate_field("width"));
                     }
                     let value = map.next_value()?;
+                    trace!("ImageMacro::width = {}", value);
                     if value > MAX_WIDTH {
                         return Err(de::Error::custom(
                             format_args!("width is too large: {} > {}", value, MAX_WIDTH)));
@@ -83,6 +86,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         return Err(de::Error::duplicate_field("height"));
                     }
                     let value = map.next_value()?;
+                    trace!("ImageMacro::height = {}", value);
                     if value > MAX_HEIGHT {
                         return Err(de::Error::custom(
                             format_args!("height is too large: {} > {}", value, MAX_HEIGHT)));
@@ -104,6 +108,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         return Err(de::Error::custom(format_args!("duplicate field `{}`", key)));
                     }
                     simple_fields.insert(key.clone());
+                    trace!("ImageMacro::{} = ...", key);
 
                     let mut parts = key.split("_");
                     let (valign_part, field_part) = (parts.next().unwrap(),
@@ -138,6 +143,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     simple_fields.insert("font".into());
 
                     let font: String = map.next_value()?;
+                    trace!("ImageMacro::font = {}", font);
                     for valign in VAlign::iter_variants() {
                         let mut caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
@@ -155,6 +161,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     simple_fields.insert("color".into());
 
                     let color: Color = map.next_value()?;
+                    trace!("ImageMacro::color = {}", color);
                     for valign in VAlign::iter_variants() {
                         let mut caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
@@ -172,6 +179,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     simple_fields.insert("outline".into());
 
                     let outline: Option<Color> = map.next_value()?;
+                    trace!("ImageMacro::outline = {:?}", outline);
                     for valign in VAlign::iter_variants() {
                         let mut caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
@@ -235,7 +243,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
         if full_captions.is_some() {
             if simple_captions.len() > 0 {
                 return Err(de::Error::custom(
-                    "`captions` cannot be provided along with `top/middle/bottom_text/align/font`"))
+                    "`captions` cannot be provided along with `top/middle/bottom_text/align/etc.`"))
             }
             if simple_fields.len() > 0 {
                 return Err(de::Error::custom(
@@ -253,11 +261,15 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
             captions = full_captions.unwrap_or_else(|| vec![]);
         }
         captions.sort_by_key(|c| (c.valign, c.halign));
+        for caption in &mut captions {
+            caption.text = normalize_text(&caption.text)?;
+        }
 
         let template = template.ok_or_else(|| de::Error::missing_field("template"))?;
         Ok(ImageMacro{template, width, height, captions})
     }
 }
+
 
 // ImageMacro::captions can be provided as either a list of strings,
 // or a list of complete Caption representations (as maps).
@@ -316,4 +328,20 @@ impl<'de> Visitor<'de> for SourcedCaptionVisitor {
         let result = SourcedCaption(CaptionSource::Map, caption);
         Ok(result)
     }
+}
+
+
+/// Normalize the caption text and validate it.
+fn normalize_text<E: de::Error>(s: &str) -> Result<String, E> {
+    // Use the NFC form as suggested by rusttype crate docs.
+    let normalized = s.nfc();
+
+    let mut count = 0;
+    let text: String = normalized.map(|c| { count += 1; c }).collect();
+    trace!("Caption text normalized to {} characters", count);
+    if count > MAX_CAPTION_LENGTH {
+        return Err(E::custom(format_args!(
+            "caption text is too long: {} > {} characters", count, MAX_CAPTION_LENGTH)));
+    }
+    Ok(text)
 }
