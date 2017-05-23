@@ -101,8 +101,14 @@ impl Caption {
     /// Create an empty Caption at the particular vertical alignment.
     #[inline]
     pub fn at(valign: VAlign) -> Self {
+        Self::text_at(valign, "")
+    }
+
+    /// Create a Caption with a text at the particular vertical alignment.
+    #[inline]
+    pub fn text_at<S: Into<String>>(valign: VAlign, s: S) -> Self {
         Caption{
-            text: String::new(),
+            text: s.into(),
             halign: DEFAULT_HALIGN,
             valign: valign,
             font: DEFAULT_FONT.into(),

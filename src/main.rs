@@ -51,8 +51,8 @@
 #[macro_use] extern crate log;
 
 
-#[cfg(test)]
-#[macro_use] extern crate spectral;
+#[cfg(test)]              extern crate serde_test;
+#[cfg(test)] #[macro_use] extern crate spectral;
 
 
 #[macro_use]

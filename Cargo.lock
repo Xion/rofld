@@ -34,6 +34,7 @@ dependencies = [
  "serde_derive 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_qs 0.2.0 (git+https://github.com/samscott89/serde_qs.git)",
+ "serde_test 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog-envlogger 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog-stdlog 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -862,6 +863,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_test"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "serde 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "slab"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1308,6 +1317,7 @@ dependencies = [
 "checksum serde_derive_internals 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)" = "021c338d22c7e30f957a6ab7e388cb6098499dda9fd4ba1661ee074ca7a180d1"
 "checksum serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "48b04779552e92037212c3615370f6bd57a40ebba7f20e554ff9f55e41a69a7b"
 "checksum serde_qs 0.2.0 (git+https://github.com/samscott89/serde_qs.git)" = "<none>"
+"checksum serde_test 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)" = "7d8c8022e0ec862cc1e0b73306bcd327c10de1873d1ab57794f344a7630ad46a"
 "checksum slab 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "17b4fcaed89ab08ef143da37bc52adbcc04d4a69014f4c1208d6b51f0c47bc23"
 "checksum slog 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bab9d589681f7d6b9ca4ed5cc861779a392bca7beaae2f69f2341617415a78dc"
 "checksum slog-envlogger 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "dfea715bb310c33c8f90e659bce5b95e39851348b9a7e2a77495a069662def78"

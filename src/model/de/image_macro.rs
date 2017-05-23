@@ -14,18 +14,25 @@ use super::super::{Caption, Color, ImageMacro, VAlign,
                    MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT, MAX_CAPTION_LENGTH};
 
 
-// TODO: test Deserialize impls of ImageMacro, Caption, and Color using serde_test
+// TODO: test Deserialize impl of ImageMacro using serde_test
+// (but first put tests.rs in a folder module and split into json & qs)
 
 
 /// Publicly mentioned fields of ImageMacro.
 const FIELDS: &'static [&'static str] = &[
     "template", "width", "height", "captions",
 ];
-
 /// Semi-official fields that allow to set properties of all captions at once.
 const WHOLESALE_CAPTION_FIELDS: &'static [&'static str] = &[
     "font", "color", "outline",
 ];
+// How many fields (of any kind) are required at the very minimum.
+const REQUIRED_FIELDS_COUNT: usize = 1;  // template
+
+const EXPECTING_MSG: &'static str = "representation of an image macro";
+lazy_static! {
+    static ref EXPECTING_FIELD_COUNT_MSG: String = format!("at least {}", REQUIRED_FIELDS_COUNT);
+}
 
 
 impl<'de> Deserialize<'de> for ImageMacro {
@@ -41,12 +48,20 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
     type Value = ImageMacro;
 
     fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "valid representation of an image macro")
+        write!(fmt,"{}", EXPECTING_MSG)
     }
 
     fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
         where V: de::MapAccess<'de>
     {
+        // Preemptively check for length against a minimum.
+        if let Some(size) = map.size_hint() {
+            if size < REQUIRED_FIELDS_COUNT {
+                return Err(de::Error::invalid_length(
+                    size, &(&*EXPECTING_FIELD_COUNT_MSG as &str)));
+            }
+        }
+
         let mut template = None;
         let mut width = None;
         let mut height = None;

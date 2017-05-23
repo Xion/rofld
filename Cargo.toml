@@ -58,6 +58,7 @@ unicode-normalization = "0.1"
 unreachable = "0.1"
 
 [dev-dependencies]
+serde_test = "1.0"
 spectral = "0.6.0"
 
 [profile.release]
