@@ -14,10 +14,6 @@ use super::super::{Caption, Color, ImageMacro, VAlign,
                    MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT, MAX_CAPTION_LENGTH};
 
 
-// TODO: test Deserialize impl of ImageMacro using serde_test
-// (but first put tests.rs in a folder module and split into json & qs)
-
-
 /// Publicly mentioned fields of ImageMacro.
 const FIELDS: &'static [&'static str] = &[
     "template", "width", "height", "captions",

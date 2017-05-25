@@ -104,8 +104,8 @@ impl Captioner {
             Resource::Font => {
                 let capacity = self.cache.fonts().capacity();
                 debug!("Preloading up to {} fonts", capacity);
-                for template in rand::sample(&mut rng, list_fonts(), capacity) {
-                    self.cache.load_font(&template);
+                for font in rand::sample(&mut rng, list_fonts(), capacity) {
+                    self.cache.load_font(&font);
                 }
             }
         }
