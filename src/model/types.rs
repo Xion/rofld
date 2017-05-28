@@ -120,12 +120,12 @@ impl Caption {
 impl fmt::Debug for Caption {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{valign:?}{halign:?}{{{font:?} {outline}[{color}]}}({text:?})",
-            text=self.text,
-            halign=self.halign,
-            valign=self.valign,
-            font=self.font,
-            color=self.color,
-            outline=self.outline.map(|o| format!("{}", o)).unwrap_or_else(String::new))
+            text = self.text,
+            halign = self.halign,
+            valign = self.valign,
+            font = self.font,
+            color = self.color,
+            outline = self.outline.map(|o| format!("{}", o)).unwrap_or_else(String::new))
     }
 }
 

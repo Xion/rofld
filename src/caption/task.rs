@@ -140,9 +140,9 @@ impl CaptionTask {
             debug!("Empty caption text, skipping.");
             return Ok(img);
         }
-        debug!("Rendering {v}-{h} text: {text}", text=caption.text,
-            v=format!("{:?}", caption.valign).to_lowercase(),
-            h=format!("{:?}", caption.halign).to_lowercase());
+        debug!("Rendering {v}-{h} text: {text}", text = caption.text,
+            v = format!("{:?}", caption.valign).to_lowercase(),
+            h = format!("{:?}", caption.halign).to_lowercase());
 
         trace!("Loading font `{}` from cache...", caption.font);
         let font = self.cache.get_font(&caption.font)
@@ -261,7 +261,7 @@ impl CaptionTask {
                 }
             }
             f => {
-                warn!("Unexpected image format in CaptionTask::encode_result: {:?}", f);
+                error!("Unexpected image format in CaptionTask::encode_result: {:?}", f);
                 return Err(CaptionError::Unavailable); // TODO: better error?
             }
         }

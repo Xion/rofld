@@ -10,6 +10,7 @@ use hyper::header::{Expires, ContentLength, ContentType};
 use hyper::server::{Service, Request, Response};
 use serde_json::{self, Value as Json};
 use serde_qs;
+use time::precise_time_s;
 
 use caption::CAPTIONER;
 use ext::hyper::BodyExt;
@@ -29,16 +30,21 @@ impl Service for Rofl {
         // TODO: log the request after the response is served, in Common Log Format;
         // need to retain the request info first
         self.log(&req);
-        self.handle(req).map(|mut resp| {
+
+        let start = precise_time_s();
+        self.handle(req).map(move |mut resp| {
             Self::fix_headers(&mut resp);
-            debug!("HTTP {}, sent {} bytes (ContentType: {})",
-                resp.status(),
-                if resp.headers().has::<ContentLength>() {
+
+            let finish = precise_time_s();
+            debug!("HTTP {status}, produced {len} bytes of {ctype} in {time:.3} secs",
+                status = resp.status(),
+                len = if resp.headers().has::<ContentLength>() {
                     format!("{}", **resp.headers().get::<ContentLength>().unwrap())
                 } else {
                     "unknown number of".into()
                 },
-                resp.headers().get::<ContentType>().unwrap());
+                ctype = resp.headers().get::<ContentType>().unwrap(),
+                time = finish - start);
             resp
         }).boxed()
     }
@@ -110,16 +116,14 @@ impl Rofl {
                         Some(mt) => mt,
                         None => return error_response(
                             StatusCode::InternalServerError,
-                            format!("invalid template format: {:?}", out.format)),
+                            format!("invalid format: {:?}", out.format)),
                     };
                     Response::new()
                         .with_header(ContentType(mime_type))
                         .with_header(ContentLength(out.bytes.len() as u64))
                         .with_body(out.bytes)
                 })
-                .or_else(|e| future::ok(
-                    error_response(e.status_code(), format!("{}", e))
-                ))
+                .or_else(|e| future::ok(error_response(e.status_code(), e)))
                 .boxed()
         })
         .boxed()

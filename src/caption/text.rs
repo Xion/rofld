@@ -5,6 +5,7 @@ use std::fmt;
 use std::ops::{Add, Div, Sub};
 
 use image::{DynamicImage, GenericImage};
+use itertools::Itertools;
 use num::One;
 use regex::Regex;
 use rusttype::{GlyphId, Font, point, Point, Rect, Scale};
@@ -23,8 +24,8 @@ pub fn check<'f, 's>(font: &'f Font<'f>, text: &'s str) {
         }
     }
     if !missing.is_empty() {
-        warn!("Missing glyphs for {} codepoint(s): {}", missing.len(),
-            missing.into_iter().map(|c| format!("{:#x}", c)).collect::<Vec<_>>().join(", "));
+        warn!("Missing glyphs for {} codepoint(s): {}",
+            missing.len(), missing.into_iter().format(", "));
     }
 }
 

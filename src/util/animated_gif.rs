@@ -153,22 +153,32 @@ pub fn is_gif_animated<P: AsRef<Path>>(path: P) -> Option<bool> {
             path.display(), e); e
     }).ok());
 
-    // The `image` crate technically has an ImageDecoder::is_nimated method,
+    // The `image` crate technically has an ImageDecoder::is_animated() method,
     // but it doesn't seem to actually work.
-    // So instead we just check if the GIF has at least two frames.
+    // So instead we just check if the GIF has at least two frames spaced in time.
 
     let mut decoder = gif::Decoder::new(&mut file);
-    decoder.set(MEMORY_LIMIT);;
+    decoder.set(gif::ColorOutput::Indexed);
+    decoder.set(MEMORY_LIMIT);
     let mut reader = try_opt!(decoder.read_info().ok());
 
     let mut frame_count = 0;
-    let mut previous_delay = 0;
+    let mut delay_ms = 0;
     while let Some(frame) = try_opt!(reader.next_frame_info().ok()) {
         frame_count += 1;
-        if frame_count > 1 && previous_delay > 0 {
+        delay_ms += frame.delay * 10;  // GIF delay unit is 10ms.
+        if frame_count > 1 && delay_ms > 0 {
+            trace!("File {} is a >={}ms animated GIF with {}+ frames",
+                path.display(), delay_ms, frame_count);
             return Some(true);
         }
-        previous_delay = frame.delay;
+    }
+
+    if frame_count > 0 {
+        trace!("File {} is a still but compound GIF image with {} parts",
+            path.display(), frame_count);
+    } else {
+        trace!("File {} is a still GIF image", path.display());
     }
     Some(false)
 }
