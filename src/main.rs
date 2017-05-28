@@ -77,7 +77,7 @@ use futures::{BoxFuture, Future, Stream, stream};
 use hyper::server::{Http, NewService, Request, Response, Server};
 use tokio_core::reactor::Handle;
 
-use args::{ArgsError, Options};
+use args::{ArgsError, Options, Resource};
 use caption::CAPTIONER;
 
 
@@ -115,10 +115,12 @@ fn main() {
     }
 
     for (i, arg) in env::args().enumerate() {
-        trace!("argv[{}] = {:?}", i, arg);
+        debug!("argv[{}] = {:?}", i, arg);
     }
+    trace!("Server config parsed from argv: {:#?}", opts);
 
     start_server(opts);
+    debug!("Exiting main()");
 }
 
 /// Print an error that may occur while parsing arguments.
@@ -190,9 +192,8 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
         CAPTIONER.cache().fonts().set_capacity(fcs);
         debug!("Size of the font cache set to {}", fcs);
     }
-    for resource in &opts.preload {
-        // TODO: measure preload time and log how long it took
-        CAPTIONER.preload(resource);
+    if !opts.preload.is_empty() {
+        preload_resources(opts.preload.iter());
     }
 
     server.shutdown_timeout(opts.shutdown_timeout);
@@ -207,6 +208,29 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
         debug!("Request timeout set to {} secs", opts.request_timeout.as_secs());
     } else {
         debug!("Request timeout disabled.");
+    }
+}
+
+/// Preload resources of specified types, logging how long it took.
+fn preload_resources<I: Iterator<Item=Resource>>(preload: I) {
+    let preload: Vec<_> = preload.collect();
+    if log_enabled!(log::LogLevel::Trace) {
+        trace!("Preloading: {}...", format_resources(&*preload));
+    }
+
+    let start = time::precise_time_s();
+    for &resource in &preload {
+        CAPTIONER.preload(resource);
+    }
+    let finish = time::precise_time_s();
+
+    debug!("Done preloading resources ({}), total time elapsed: {:.3} secs",
+        format_resources(&*preload), finish - start);
+
+    fn format_resources(resources: &[Resource]) -> String {
+        resources.iter()
+            .map(|r| format!("{:?}s", r).to_lowercase().to_owned())
+            .collect::<Vec<_>>().join(", ").to_owned()
     }
 }
 
