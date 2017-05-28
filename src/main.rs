@@ -5,6 +5,7 @@
              extern crate ansi_term;
              extern crate atomic;
 #[macro_use] extern crate clap;
+             extern crate color_quant;
              extern crate conv;
              extern crate css_color_parser;
 #[macro_use] extern crate enum_derive;

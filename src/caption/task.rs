@@ -76,10 +76,6 @@ impl CaptionTask {
         // (which usually means just one, unless it's an animated GIF).
         let mut images = Vec::with_capacity(template.image_count());
         for mut img in template.iter_images().cloned() {
-            // XXX: resizing images like this may break GIFs that put their frames
-            // all over the "logical screen" and not just covering it all every time;
-            // to support that, we'd need to consider the logical size
-            // for each image here
             img = self.resize_template(img);
             if self.has_text() {
                 img = self.draw_texts(img)?;
@@ -224,7 +220,7 @@ impl CaptionTask {
                     .map_err(CaptionError::Encode)?;
             }
             ImageFormat::JPEG => {
-                let quality = 85;  // TODO: server / request parameter?
+                let quality = 85;  // TODO: --jpeg_quality server parameter
                 trace!("Writing JPEG with quality {}", quality);
                 assert_eq!(1, images.len());
                 let img = &images[0];
@@ -245,13 +241,15 @@ impl CaptionTask {
                     assert_eq!(1, images.len());
                     let img = &images[0];
 
-                    // TODO: create the Frame by hand, so that we don't have to clone
-                    // the pixel buffer and use the allegedly slow Frame::from_rgba
-                    // (just check its source to see how it gives values to other fields)
+                    // Encode the image as a single GIF frame.
                     let (width, height) = img.dimensions();
-                    let mut pixels = img.raw_pixels().to_owned();
-                    let frame = image::gif::Frame::from_rgba(
-                        width as u16, height as u16, &mut pixels);
+                    let mut frame = image::gif::Frame::default();
+                    let (buffer, palette, transparent) = animated_gif::quantize_image(img);
+                    frame.width = width as u16;
+                    frame.height = height as u16;
+                    frame.buffer = buffer.into();
+                    frame.palette = Some(palette);
+                    frame.transparent = transparent;
 
                     image::gif::Encoder::new(&mut result).encode(frame).map_err(|e| {
                         let io_error = match e {
@@ -262,7 +260,10 @@ impl CaptionTask {
                     })?;
                 }
             }
-            _ => return Err(CaptionError::Unavailable), // TODO: better error?
+            f => {
+                warn!("Unexpected image format in CaptionTask::encode_result: {:?}", f);
+                return Err(CaptionError::Unavailable); // TODO: better error?
+            }
         }
 
         Ok(result)

@@ -2,11 +2,13 @@
 //! This is done by wrapping over the API exposes by several image-related crates.
 
 use std::error::Error;
+use std::fmt;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::Path;
 use std::slice;
 
+use color_quant::NeuQuant;
 use gif::{self, SetParameter};
 use gif_dispose::Screen;
 use image::{DynamicImage, GenericImage, RgbaImage};
@@ -22,6 +24,7 @@ pub struct GifAnimation {
     /// Height of the animation canvas (logical screen).
     pub height: u16,
     /// Global palette (Color Table).
+    /// This is a contiguous array of RGB bytes.
     pub palette: Vec<u8>,
     /// Index of the background color in global palette, if any.
     pub bg_color: Option<usize>,
@@ -40,6 +43,21 @@ impl GifAnimation {
         Box::new(self.frames.iter())
     }
 }
+
+impl fmt::Debug for GifAnimation {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let colors = self.palette.len() / RGB_SIZE_BYTES;
+        fmt.debug_struct("GifAnimation")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("palette", &format_args!("<{} colors>", colors))
+            .field("bg_color", &self.bg_color)
+            .field("frames", &format_args!("<{} frames>", self.frames.len()))
+            .finish()
+    }
+}
+
+const RGB_SIZE_BYTES: usize = 3;
 
 
 /// A single frame of an animated GIF template.
@@ -77,6 +95,16 @@ impl GifFrame {
     }
 }
 
+impl fmt::Debug for GifFrame {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let (w, h) = self.image.dimensions();
+        fmt.debug_struct("GifFrame")
+            .field("image", &format_args!("{}x{}", w, h))
+            .field("metadata", &self.metadata)
+            .finish()
+    }
+}
+
 
 // Decoding animated GIFs
 
@@ -103,8 +131,8 @@ impl Error for DecodeError {
     }
 }
 
-// TODO: server command line param
-const MEMORY_LIMIT: gif::MemoryLimit = gif::MemoryLimit(32 * 1024 * 1024);
+
+// Checking GIF properties
 
 /// Check if the path points to a GIF file.
 pub fn is_gif<P: AsRef<Path>>(path: P) -> bool {
@@ -145,13 +173,23 @@ pub fn is_gif_animated<P: AsRef<Path>>(path: P) -> Option<bool> {
     Some(false)
 }
 
+// TODO: server command line param
+const MEMORY_LIMIT: gif::MemoryLimit = gif::MemoryLimit(32 * 1024 * 1024);
+
+
+// Decoding animated GIFs
+
 /// Decode animated GIF from given file.
-pub fn decode<P: AsRef<Path>>(path: P) -> Result<GifAnimation, DecodeError> {
+pub fn decode_from_file<P: AsRef<Path>>(path: P) -> Result<GifAnimation, DecodeError> {
     let path = path.as_ref();
     trace!("Loading animated GIF from {}", path.display());
     let mut file = File::open(path)?;
+    decode(&mut file)
+}
 
-    let mut decoder = gif::Decoder::new(&mut file);
+/// Decode animated GIF from given reader.
+pub fn decode<R: Read>(input: &mut R) -> Result<GifAnimation, DecodeError> {
+    let mut decoder = gif::Decoder::new(input);
     decoder.set(gif::ColorOutput::Indexed);
     decoder.set(MEMORY_LIMIT);
 
@@ -173,7 +211,6 @@ pub fn decode<P: AsRef<Path>>(path: P) -> Result<GifAnimation, DecodeError> {
         // in order to make a new frame for the current state of the animation.
         let pixels_rgba: &[_] = &*screen.pixels;
         let pixel_bytes: &[u8] = unsafe {
-            const RGBA_SIZE_BYTES: usize = 4;
             let ptr = pixels_rgba as *const _ as *const u8;
             slice::from_raw_parts(ptr, pixels_rgba.len() * RGBA_SIZE_BYTES)
         };
@@ -193,8 +230,15 @@ pub fn decode<P: AsRef<Path>>(path: P) -> Result<GifAnimation, DecodeError> {
     Ok(GifAnimation{width, height, palette, bg_color, frames})
 }
 
+const RGBA_SIZE_BYTES: usize = 4;
+
 
 // Encoding animated GIFs
+
+/// Quality parameter for the NeuQuant color quantizer.
+/// Range 1..=30. Lower values mean better quality.
+const COLOR_SAMPLE_FACTION: i32 = 12;
+// TODO: --gif_quality server param
 
 /// Encode animated GIF.
 pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
@@ -207,18 +251,10 @@ pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
         trace!("Writing frame #{}", i + 1);
         let mut gif_frame = frame.metadata.clone();
 
-        let (width, height) = frame.image.dimensions();
-        let width = width as u16;
-        let height = height as u16;
-
-        // TODO: see below, as this is probably slower than necessary
-        let mut pixels = frame.image.raw_pixels().to_owned();
-        let pixels_frame = gif::Frame::from_rgba(width, height, &mut pixels);
-        gif_frame.width = pixels_frame.width;
-        gif_frame.height = pixels_frame.height;
-        gif_frame.buffer = pixels_frame.buffer;
-        gif_frame.palette = pixels_frame.palette;
-        gif_frame.transparent = gif_frame.transparent;
+        let (buffer, palette, transparent) = quantize_image(&frame.image);
+        gif_frame.buffer = buffer.into();
+        gif_frame.palette = Some(palette);
+        gif_frame.transparent = transparent;
 
         encoder.write_frame(&gif_frame)?;
     }
@@ -254,6 +290,42 @@ pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,
     };
 
     encode(&new_anim, output)
+}
+
+/// Low-level function that performs color quantization of an image.
+///
+/// Returns (buffer, palette, transparent) where:
+/// * buffer is the image with pixel being palette indexes
+/// * palette is a contiguous buffer of RGB colors of the palette used
+/// * transparent is optional palette index of the transparent color
+pub fn quantize_image(image: &DynamicImage) -> (Vec<u8>, Vec<u8>, Option<u8>) {
+    let mut pixels = image.raw_pixels().to_owned();
+
+    //
+    // This is essentially gif::Frame::from_rgba().
+    // The code is lifted here so that we can adjust the crucial COLOR_SAMPLE_FACTION
+    // passed to the color quantizer.
+    // (The original default of 1 makes it way too slow for most practical purposes).
+    //
+
+    let mut transparent = None;
+    for pix in pixels.chunks_mut(4) {
+        if pix[3] != 0 {
+            pix[3] = 0xFF;
+        } else {
+            transparent = Some([pix[0], pix[1], pix[2], pix[3]])
+        }
+    }
+
+    let quantizer = NeuQuant::new(COLOR_SAMPLE_FACTION, 256, &pixels[..]);
+
+    let buffer = pixels.chunks(RGBA_SIZE_BYTES)
+        .map(|pix| quantizer.index_of(pix) as u8)
+        .collect();
+    let palette = quantizer.color_map_rgb();
+    let transparent = transparent.map(|t| quantizer.index_of(&t) as u8);
+
+    (buffer, palette, transparent)
 }
 
 /// A really silly hack to work around the fact that `gif` crate doesn't allow to pass

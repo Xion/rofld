@@ -119,7 +119,7 @@ impl<P: AsRef<Path>> TryFrom<P> for Template {
         // Use the regular `image` crate to load any other (still) image.
         if is_gif(&path) && is_gif_animated(&path).unwrap_or(false) {
             trace!("Image {} is an animated GIF", path.display());
-            let gif_anim = animated_gif::decode(&path).map_err(|e| {
+            let gif_anim = animated_gif::decode_from_file(&path).map_err(|e| {
                 error!("Failed to open animated GIF template {}: {}",
                     path.display(), e); e
             })?;
