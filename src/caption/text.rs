@@ -18,6 +18,9 @@ use model::{Color, HAlign, VAlign};
 pub fn check<'f, 's>(font: &'f Font<'f>, text: &'s str) {
     let mut missing = HashSet::new();
     for ch in text.chars() {
+        if ch.is_whitespace() {
+            continue;
+        }
         let glyph = font.glyph(ch);
         if glyph.is_none() || glyph.unwrap().id() == GlyphId(0) {
             missing.insert(ch as u32);
@@ -301,8 +304,8 @@ fn break_single_line(s: &str, style: &Style, line_width: f32) -> Vec<String> {
                 }
             }
 
-            // What remains here will fit within the current line now,
-            // so we just add it there.
+            // What remains will fit within the current line now,
+            // so we just add it in there.
             // And if there is nothing to carry over, we're done.
             current_line.push_str(&segment);
             current_width += segment_width;
@@ -316,7 +319,7 @@ fn break_single_line(s: &str, style: &Style, line_width: f32) -> Vec<String> {
             current_width = 0.0;
 
             // ...which now also becomes the new segment part,
-            // to break up in the identical way.
+            // ready to be broken up in an identical way.
             segment = carryover.into_iter().rev().collect();
             segment_width = carryover_width;
         }

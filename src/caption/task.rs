@@ -140,7 +140,7 @@ impl CaptionTask {
             debug!("Empty caption text, skipping.");
             return Ok(img);
         }
-        debug!("Rendering {v}-{h} text: {text}", text = caption.text,
+        debug!("Rendering {v}-{h} text: {text:?}", text = caption.text,
             v = format!("{:?}", caption.valign).to_lowercase(),
             h = format!("{:?}", caption.halign).to_lowercase());
 
@@ -164,7 +164,7 @@ impl CaptionTask {
 
         // Similarly for the horizontal margin.
         let max_hmargin: f32 = 16.0;
-        let hmargin = max_hmargin.min(height * 0.02);
+        let hmargin = max_hmargin.min(width * 0.02);
         trace!("Horizontal text margin computed as {}", hmargin);
 
         let margin_vector = vector(hmargin, vmargin);
