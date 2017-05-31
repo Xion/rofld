@@ -2,9 +2,11 @@
 
 mod cache;
 pub mod fonts;
+mod loaders;
 mod templates;
 
 
 pub use self::cache::{Cache, ThreadSafeCache};
 pub use self::fonts::{list as list_fonts};
 pub use self::templates::{list as list_templates, Template};
+
