@@ -8,12 +8,13 @@ use std::sync::atomic::Ordering;
 use atomic::Atomic;
 use futures::{BoxFuture, future, Future};
 use futures_cpupool::{self, CpuPool};
-use rand::thread_rng;
+use rand::{self, thread_rng};
 use rofl::{self, CaptionOutput, CaptionError, Font, ImageMacro, Template, ThreadSafeCache};
 use tokio_timer::{TimeoutError, Timer, TimerError};
 
 use args::Resource;
 use super::{FONT_DIR, TEMPLATE_DIR};
+use super::list::{list_templates, list_fonts};
 
 
 lazy_static! {
@@ -95,26 +96,29 @@ impl Captioner {
 
     /// Fill the cache for given type of resource.
     pub fn preload(&self, what: Resource) {
-        warn!("Preloading temporarily not implemented");
-        // let mut rng = thread_rng();
-        // match what {
-        //     Resource::Template => {
-        //         let capacity = self.cache.templates().capacity();
-        //         debug!("Preloading up to {} templates", capacity);
-        //         // TODO: the sampling here is O(N_t*C), so it can be quadratic;
-        //         // pick a better method (probably the random_choice crate)
-        //         for template in rand::sample(&mut rng, list_templates(), capacity) {
-        //             self.cache.load_template(&template);
-        //         }
-        //     }
-        //     Resource::Font => {
-        //         let capacity = self.cache.fonts().capacity();
-        //         debug!("Preloading up to {} fonts", capacity);
-        //         for font in rand::sample(&mut rng, list_fonts(), capacity) {
-        //             self.cache.load_font(&font);
-        //         }
-        //     }
-        // }
+        let mut rng = thread_rng();
+        match what {
+            Resource::Template => {
+                let capacity = self.template_cache().capacity();
+                debug!("Preloading up to {} templates", capacity);
+                // TODO: the sampling here is O(N_t*C), so it can be quadratic;
+                // pick a better method (probably the random_choice crate)
+                for template in rand::sample(&mut rng, list_templates(), capacity) {
+                    if let Err(e) = self.engine.preload_template(&template) {
+                        warn!("Error preloading template `{}`: {}", template, e);
+                    }
+                }
+            }
+            Resource::Font => {
+                let capacity = self.font_cache().capacity();
+                debug!("Preloading up to {} fonts", capacity);
+                for font in rand::sample(&mut rng, list_fonts(), capacity) {
+                    if let Err(e) = self.engine.preload_font(&font) {
+                        warn!("Error preloading font `{}`: {}", font, e);
+                    }
+                }
+            }
+        }
     }
 }
 

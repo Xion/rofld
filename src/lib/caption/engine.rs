@@ -39,6 +39,7 @@ impl<Tl, Fl> From<Inner<Tl, Fl>> for Engine<Tl, Fl>
     }
 }
 
+// Constructors.
 impl Engine<TemplateLoader, FontLoader> {
     /// Create an Engine which loads templates & fonts from given directory paths.
     /// When loaded, both resources will be cached in memory (LRU cache).
@@ -78,6 +79,7 @@ impl<Tl, Fl> Engine<Tl, Fl>
     }
 }
 
+// Image macro captioning.
 impl<Tl, Fl> Engine<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
@@ -87,10 +89,30 @@ impl<Tl, Fl> Engine<Tl, Fl>
     pub fn caption(&self, image_macro: ImageMacro) -> Result<CaptionOutput, CaptionError> {
         CaptionTask::new(image_macro, self.inner.clone()).perform()
     }
+}
+
+// Managing resources.
+impl<Tl, Fl> Engine<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
+    /// Preemptively load a template into engine's cache.
+    pub fn preload_template(&self, name: &str) -> Result<(), Tl::Err> {
+        if !self.inner.template_loader.phony {
+           self.inner.template_loader.load(name)?;
+        }
+        Ok(())
+    }
+
+    /// Preemptively load a font into engine's cache.
+    pub fn preload_font(&self, name: &str) -> Result<(), Fl::Err> {
+        if !self.inner.font_loader.phony {
+            self.inner.font_loader.load(name)?;
+        }
+        Ok(())
+    }
 
     /// Return a reference to the internal template cache, if any.
     /// This can be used to examine cache statistics (hits & misses).
-    #[inline]
     pub fn template_cache(&self) -> Option<&ThreadSafeCache<String, Tl::Item>> {
         if self.inner.template_loader.phony {
             None
@@ -101,7 +123,6 @@ impl<Tl, Fl> Engine<Tl, Fl>
 
     /// Return a reference to the internal font cache, if any.
     /// This can be used to examine cache statistics (hits & misses).
-    #[inline]
     pub fn font_cache(&self) -> Option<&ThreadSafeCache<String, Fl::Item>> {
         if self.inner.font_loader.phony {
             None
