@@ -2,26 +2,20 @@
 //! rofld  -- Lulz on demand
 //!
 
-             extern crate ansi_term;
              extern crate atomic;
+             extern crate ansi_term;
 #[macro_use] extern crate clap;
-             extern crate color_quant;
              extern crate conv;
-             extern crate css_color_parser;
+#[macro_use] extern crate derive_error;
 #[macro_use] extern crate enum_derive;
              extern crate enum_set;
-#[macro_use] extern crate error_derive;
              extern crate futures;
              extern crate futures_cpupool;
-             extern crate gif;
-             extern crate gif_dispose;
              extern crate glob;
              extern crate hyper;
-             extern crate image;
              extern crate isatty;
              extern crate itertools;
 #[macro_use] extern crate lazy_static;
-             extern crate lru_cache;
 #[macro_use] extern crate macro_attr;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate mime;
@@ -29,7 +23,7 @@
              extern crate num;
              extern crate rand;
              extern crate regex;
-             extern crate rusttype;
+             extern crate rofl;
              extern crate serde;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_json;
@@ -42,7 +36,6 @@
              extern crate tokio_timer;
              extern crate time;
 #[macro_use] extern crate try_opt;
-             extern crate unicode_normalization;
              extern crate unreachable;
 
 // `slog` must precede `log` in declarations here, because we want to simultaneously:
@@ -56,15 +49,10 @@
 #[cfg(test)] #[macro_use] extern crate spectral;
 
 
-#[macro_use]
-mod util;
-
 mod args;
 mod ext;
-mod caption;
+mod handlers;
 mod logging;
-mod model;
-mod resources;
 mod service;
 
 
@@ -79,7 +67,7 @@ use log::LogLevel::*;
 use tokio_core::reactor::Handle;
 
 use args::{ArgsError, Options, Resource};
-use caption::CAPTIONER;
+use handlers::CAPTIONER;
 
 
 lazy_static! {
@@ -210,11 +198,11 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
     }
 
     if let Some(tcs) = opts.template_cache_size {
-        CAPTIONER.cache().templates().set_capacity(tcs);
+        CAPTIONER.template_cache().set_capacity(tcs);
         debug!("Size of the template cache set to {}", tcs);
     }
     if let Some(fcs) = opts.font_cache_size {
-        CAPTIONER.cache().fonts().set_capacity(fcs);
+        CAPTIONER.font_cache().set_capacity(fcs);
         debug!("Size of the font cache set to {}", fcs);
     }
     if !opts.preload.is_empty() {

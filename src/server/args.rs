@@ -165,36 +165,35 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
     }
 }
 
-macro_attr! {
-    /// Error that can occur while parsing of command line arguments.
-    #[derive(Debug,
-             Error!("command line arguments error"), ErrorDisplay!)]
-    pub enum ArgsError {
-        /// General when parsing the arguments.
-        Parse(clap::Error),
-        /// Error while parsing the server address.
-        Address(AddrParseError),
-        /// Error while parsing --render-threads flag.
-        RenderThreads(ParseIntError),
-        /// Error while parsing --template-cache flag.
-        TemplateCache(ParseIntError),
-        /// Error while parsing --font-cache flag.
-        FontCache(ParseIntError),
-        /// Error while parsing --preload flag.
-        Preload(PreloadError),
-        /// Error while parsing --request-timeout flag.
-        RequestTimeout(ParseIntError),
-        /// Error while parsing --shutdown-timeout flag.
-        ShutdownTimeout(ParseIntError),
-    }
+/// Error that can occur while parsing of command line arguments.
+#[derive(Debug, Error)]
+pub enum ArgsError {
+    /// General when parsing the arguments.
+    Parse(clap::Error),
+    /// Error while parsing the server address.
+    Address(AddrParseError),
+    /// Error while parsing --render-threads flag.
+    #[error(no_from)]
+    RenderThreads(ParseIntError),
+    /// Error while parsing --template-cache flag.
+    #[error(no_from)]
+    TemplateCache(ParseIntError),
+    /// Error while parsing --font-cache flag.
+    #[error(no_from)]
+    FontCache(ParseIntError),
+    /// Error while parsing --preload flag.
+    Preload(PreloadError),
+    /// Error while parsing --request-timeout flag.
+    #[error(no_from)]
+    RequestTimeout(ParseIntError),
+    /// Error while parsing --shutdown-timeout flag.
+    #[error(no_from)]
+    ShutdownTimeout(ParseIntError),
 }
-derive_enum_from!(clap::Error => ArgsError::Parse);
-derive_enum_from!(AddrParseError => ArgsError::Address);
-derive_enum_from!(PreloadError => ArgsError::Preload);
 
 macro_attr! {
     /// Error that can occur while parsing the --preload flag.
-    #[derive(Debug, ErrorFrom!)]
+    #[derive(Debug, EnumFromInner!)]
     pub enum PreloadError {
         /// "all" or "none" is used alongside other options.
         Conflict(Box<Error>),
@@ -276,6 +275,16 @@ const DEFAULT_HOST: &'static str = "0.0.0.0";
 const DEFAULT_PORT: u16 = 1337;
 const DEFAULT_REQUEST_TIMEOUT: u32 = 10;
 const DEFAULT_SHUTDOWN_TIMEOUT: u32 = 30;
+
+
+/// Converts a value to a "static" (though not &'static) str
+/// so it can be used with APIs that only accept borrowed strings.
+macro_rules! to_static_str(
+    ($v:expr) => ({
+        lazy_static! { static ref DUMMY: String = $v.to_string(); }
+        &*DUMMY as &str
+    })
+);
 
 
 /// Create the parser for application's command line.

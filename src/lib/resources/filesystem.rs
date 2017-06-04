@@ -1,72 +1,16 @@
 //! Module defining and implementing resource loaders.
 
 use std::error::Error;
+use std::fmt;
 use std::fs::{self, File};
 use std::iter;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use image::ImageError;
 use glob;
-use rusttype::{Font, FontCollection};
 
-use super::ThreadSafeCache;
-use super::templates::{Template, TemplateError};
-
-
-/// Loader of resources T from some external source.
-pub trait Loader<T> {
-    /// Error that may occur while loading the resource.
-    type Err;
-    // TODO: add an Error bound if this is ever resolved:
-    // https://github.com/rust-lang/rust/pull/30796#issuecomment-171085915
-    // or the TODO in FontLoader is fixed
-
-    /// Load a resource of given name.
-    fn load<'n>(&self, name: &'n str) -> Result<T, Self::Err>;
-}
-
-/// Type of a loader that doles out shared references to the resources.
-pub type SharingLoader<T, E> = Loader<Arc<T>, Err=E>;
-
-
-/// A loader that keeps a cache of resources previously loaded.
-pub struct CachingLoader<T, E, L>
-    where E: Error, L: Loader<T, Err=E>
-{
-    inner: L,
-    cache: ThreadSafeCache<String, T>,
-}
-
-impl<T, E, L> CachingLoader<T, E, L>
-    where E: Error, L: Loader<T, Err=E>
-{
-    #[inline]
-    pub fn new(inner: L, capacity: usize) -> Self {
-        CachingLoader{
-            inner: inner,
-            cache: ThreadSafeCache::new(capacity),
-        }
-    }
-}
-
-impl<T, E, L> Loader<Arc<T>> for CachingLoader<T, E, L>
-    where E: Error, L: Loader<T, Err=E>
-{
-    type Err = E;
-
-    /// Load the object from cache or fall back on the original Loader.
-    /// Cache the objects loaded this way.
-    fn load<'n>(&self, name: &'n str) -> Result<Arc<T>, Self::Err> {
-        if let Some(obj) = self.cache.get(name) {
-            return Ok(obj);
-        }
-        let obj = self.inner.load(name)?;
-        let cached_obj = self.cache.put(name.to_owned(), obj);
-        Ok(cached_obj)
-    }
-}
+use super::{Loader, ThreadSafeCache};
 
 
 /// Loader for file paths from given directory.
@@ -78,7 +22,7 @@ impl<T, E, L> Loader<Arc<T>> for CachingLoader<T, E, L>
 /// to make more interesting loaders.
 pub struct PathLoader<'pl> {
     directory: PathBuf,
-    predicate: Box<Fn(&Path) -> bool + 'pl>,
+    predicate: Arc<Fn(&Path) -> bool + Send + Sync + 'pl>,
 }
 
 impl<'pl> PathLoader<'pl> {
@@ -112,20 +56,21 @@ impl<'pl> PathLoader<'pl> {
     }
 
     pub fn with_predicate<D, P>(directory: D, predicate: P) -> Self
-        where D: AsRef<Path>, P: Fn(&Path) -> bool + 'pl
+        where D: AsRef<Path>, P: Fn(&Path) -> bool + Send + Sync + 'pl
     {
         PathLoader{
             directory: directory.as_ref().to_owned(),
-            predicate: Box::new(predicate),
+            predicate: Arc::new(predicate),
         }
     }
 }
 
-impl<'pl> Loader<PathBuf> for PathLoader<'pl> {
+impl<'pl> Loader for PathLoader<'pl> {
+    type Item = PathBuf;
     type Err = io::Error;
 
     /// "Load" a path "resource" from the loader's directory.
-    fn load<'n>(&self, name: &'n str) -> Result<PathBuf, Self::Err> {
+    fn load<'n>(&self, name: &'n str) -> Result<Self::Item, Self::Err> {
         let file_part = format!("{}.*", name);
         let pattern = format!("{}", self.directory.join(file_part).display());
         trace!("Globbing with {}", pattern);
@@ -153,11 +98,20 @@ impl<'pl> Loader<PathBuf> for PathLoader<'pl> {
     }
 }
 
+impl<'pl> fmt::Debug for PathLoader<'pl> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("PathLoader")
+            .field("directory", &self.directory)
+            .finish()
+    }
+}
+
 
 /// Loader for files in given directory.
 ///
 /// The resources it doles out are just file handles (std::fs::File).
 /// Wrappers around this loaded can then implement their own decoding.
+#[derive(Debug)]
 pub struct FileLoader<'pl> {
     inner: PathLoader<'pl>,
 }
@@ -187,7 +141,7 @@ impl<'pl> FileLoader<'pl> {
 
     #[inline]
     pub fn with_path_predicate<D, P>(directory: D, predicate: P) -> Self
-        where D: AsRef<Path>, P: Fn(&Path) -> bool + 'pl
+        where D: AsRef<Path>, P: Fn(&Path) -> bool + Send + Sync + 'pl
     {
         FileLoader{inner: PathLoader::with_predicate(directory, predicate)}
     }
@@ -195,10 +149,11 @@ impl<'pl> FileLoader<'pl> {
     // TODO: add filtering based on file metadata too
 }
 
-impl<'pl> Loader<File> for FileLoader<'pl> {
+impl<'pl> Loader for FileLoader<'pl> {
+    type Item = File;
     type Err = io::Error;
 
-    fn load<'n>(&self, name: &'n str) -> Result<File, Self::Err> {
+    fn load<'n>(&self, name: &'n str) -> Result<Self::Item, Self::Err> {
         let path = self.inner.load(name)?;
         fs::OpenOptions::new().read(true).open(path)
     }
@@ -206,6 +161,7 @@ impl<'pl> Loader<File> for FileLoader<'pl> {
 
 
 /// Wrapper around FileLoader that loads the entire content of the files.
+#[derive(Debug)]
 pub struct BytesLoader<'fl> {
     inner: FileLoader<'fl>,
 }
@@ -222,11 +178,12 @@ impl<'fl> From<FileLoader<'fl>> for BytesLoader<'fl> {
     }
 }
 
-impl<'fl> Loader<Vec<u8>> for BytesLoader<'fl> {
+impl<'fl> Loader for BytesLoader<'fl> {
+    type Item = Vec<u8>;
     type Err = io::Error;
 
     /// Load a file resource as its byte content.
-    fn load<'n>(&self, name: &'n str) -> Result<Vec<u8>, Self::Err> {
+    fn load<'n>(&self, name: &'n str) -> Result<Self::Item, Self::Err> {
         let file = self.inner.load(name)?;
 
         let mut bytes = match file.metadata() {
@@ -241,71 +198,5 @@ impl<'fl> Loader<Vec<u8>> for BytesLoader<'fl> {
         let mut reader = BufReader::new(file);
         reader.read_to_end(&mut bytes)?;
         Ok(bytes)
-    }
-}
-
-
-pub struct TemplateLoader {
-    inner: PathLoader<'static>,
-}
-
-impl TemplateLoader {
-    pub fn new<D: AsRef<Path>>(directory: D) -> Self {
-        let extensions = &["gif", "jpg", "jpeg", "png"];
-        TemplateLoader{
-            inner: PathLoader::for_extensions(directory, extensions),
-        }
-    }
-}
-
-impl Loader<Template> for TemplateLoader {
-    type Err = TemplateError;
-
-    fn load<'n>(&self, name: &'n str) -> Result<Template, Self::Err> {
-        // TODO: add FileError variant to TemplateError
-        let path = self.inner.load(name).map_err(ImageError::IoError)?;
-        // TODO: move the loading code here from try_from()
-        use conv::TryFrom;
-        Template::try_from(path)
-    }
-}
-
-
-pub struct FontLoader {
-    inner: BytesLoader<'static>,
-}
-
-impl FontLoader {
-    pub fn new<D: AsRef<Path>>(directory: D) -> Self {
-        FontLoader{
-            inner: BytesLoader::new(
-                FileLoader::for_extension(directory, "ttf"))
-        }
-    }
-}
-
-impl Loader<Font<'static>> for FontLoader {
-    type Err = Box<Error>; // TODO: implement an error type.
-
-    fn load<'n>(&self, name: &'n str) -> Result<Font<'static>, Self::Err> {
-        let bytes = self.inner.load(name)
-            .map_err(|_| "Can't load font")?;
-
-        let fonts: Vec<_> = FontCollection::from_bytes(bytes).into_fonts().collect();
-        match fonts.len() {
-            0 => {
-                error!("No fonts in a file for `{}` font resource", name);
-                Err("0 fonts".into())
-            }
-            1 => {
-                debug!("Font `{}` loaded successfully", name);
-                Ok(fonts.into_iter().next().unwrap())
-            }
-            _ => {
-                error!("Font file for `{}` resource contains {} fonts, expected one",
-                    name, fonts.len());
-                Err(">1 font".into())
-            }
-        }
     }
 }

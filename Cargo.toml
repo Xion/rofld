@@ -1,70 +1,8 @@
-[package]
-name = "rofld"
-version = "0.1.0"
-authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
-description = "Lulz on demand"
-documentation = "https://github.com/Xion/rofld"
-homepage = "https://github.com/Xion/rofld"
-repository = "https://github.com/Xion/rofld"
-readme = "README.md"
-license = "GPLv2"
-
-[dependencies]
-ansi_term = "0.9"
-atomic = "0.3"
-clap = { version = "2.19", features = ["suggestions"] }
-color_quant = "1.0"
-conv = "0.3"
-# TODO: change to crates.io version when a new version is published
-css-color-parser = { git = "https://github.com/7thSigil/css-color-parser-rs.git" }
-enum_derive = "*"
-enum-set = "*"
-error_derive = "*"
-futures = "0.1"
-futures-cpupool = "0.1"
-gif = "0.9"
-gif-dispose = "1.0.1"
-glob = "0.2"
-# TODO: change to hyper from crates.io when the async version is released
-hyper = { git = "https://github.com/hyperium/hyper.git" }
-image = "0.12"
-isatty = "0.1.1"
-itertools = "0.6"
-lazy_static = "*"
-log = "*"
-lru-cache = "0.1"
-macro-attr = "0.2"
-maplit = "0.1"
-mime = "0.2"
-nix = "0.8"
-num = "0.1"
-rand = "0.3"
-regex = "*"
-rusttype = "0.2"
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = "1.0"
-# TODO: change to crates.io when a version is published with a fix to
-# https://github.com/samscott89/serde_qs/issues/7
-serde_qs = { git = "https://github.com/samscott89/serde_qs.git", rev = "071affd963ed88bfdcede6aa7b20626d3cf0f368" }
-slog = "1.5.2"
-slog-envlogger = "0.5"
-slog-stdlog = "1.1"
-slog-stream = "1.2"
-tokio-core = "0.1"
-tokio-signal = "0.1"
-tokio-timer = "0.1"
-time = "0.1"
-try_opt = "*"
-unicode-normalization = "0.1"
-unreachable = "0.1"
-
-[build-dependencies]
-rustc_version = "0.2"
-
-[dev-dependencies]
-serde_test = "1.0"
-spectral = "0.6.0"
+[workspace]
+members = [
+    "src/lib",
+    "src/server",
+]
 
 [profile.release]
 lto = true

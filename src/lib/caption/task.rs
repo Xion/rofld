@@ -10,35 +10,12 @@ use mime::Mime;
 use rusttype::{point, Rect, vector};
 
 use model::{Caption, ImageMacro};
-use resources::{Cache, Template};
+use resources::{Loader, Font, Template};
 use util::animated_gif;
+use util::text::{self, Style};
 use super::error::CaptionError;
-use super::text::{self, Style};
-
-
-/// Output of the captioning process.
-#[derive(Clone, Debug)]
-pub struct CaptionOutput {
-    pub format: ImageFormat,
-    pub bytes: Vec<u8>,
-}
-
-impl CaptionOutput {
-    pub fn new(format: ImageFormat, bytes: Vec<u8>) -> Self {
-        CaptionOutput{format, bytes}
-    }
-}
-
-impl CaptionOutput {
-    pub fn mime_type(&self) -> Option<Mime> {
-        match self.format {
-            ImageFormat::GIF => Some(mime!(Image/Gif)),
-            ImageFormat::JPEG => Some(mime!(Image/Jpeg)),
-            ImageFormat::PNG => Some(mime!(Image/Png)),
-            _ => None,
-        }
-    }
-}
+use super::engine;
+use super::output::CaptionOutput;
 
 
 /// Represents a single captioning task and contains all the relevant logic.
@@ -48,25 +25,40 @@ impl CaptionOutput {
 ///
 /// All the code here is executed in a background thread,
 /// and so it can be synchronous.
-pub struct CaptionTask {
-    pub image_macro: ImageMacro,
-    pub cache: Arc<Cache>,
+pub(super) struct CaptionTask<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
+    image_macro: ImageMacro,
+    engine: Arc<engine::Inner<Tl, Fl>>,
 }
 
-impl Deref for CaptionTask {
+impl<Tl, Fl> Deref for CaptionTask<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
     type Target = ImageMacro;
     fn deref(&self) -> &Self::Target {
         &self.image_macro  // makes the rendering code a little terser
     }
 }
 
-impl CaptionTask {
+impl<Tl, Fl> CaptionTask<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
+    #[inline]
+    pub fn new(image_macro: ImageMacro, engine: Arc<engine::Inner<Tl, Fl>>) -> Self {
+        CaptionTask{image_macro, engine}
+    }
+}
+
+impl<Tl, Fl> CaptionTask<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
     /// Perform the captioning task.
     pub fn perform(self) -> Result<CaptionOutput, CaptionError> {
         debug!("Rendering {:?}", self.image_macro);
 
-        let template = self.cache.get_template(&self.template)
-            .ok_or_else(|| CaptionError::Template(self.template.clone()))?;
+        let template = self.engine.template_loader.load(&self.template)
+            .map_err(|_| CaptionError::Template(self.template.clone()))?;
         if template.is_animated() {
             debug!("Image macro uses an animated template `{}` with {} frames",
                 self.template, template.image_count());
@@ -144,9 +136,9 @@ impl CaptionTask {
             v = format!("{:?}", caption.valign).to_lowercase(),
             h = format!("{:?}", caption.halign).to_lowercase());
 
-        trace!("Loading font `{}` from cache...", caption.font);
-        let font = self.cache.get_font(&caption.font)
-            .ok_or_else(|| CaptionError::Font(caption.font.clone()))?;
+        trace!("Loading font `{}`...", caption.font);
+        let font = self.engine.font_loader.load(&caption.font)
+            .map_err(|_| CaptionError::Font(caption.font.clone()))?;
 
         trace!("Checking if font `{}` has all glyphs for caption: {}",
             caption.font, caption.text);
@@ -261,8 +253,7 @@ impl CaptionTask {
                 }
             }
             f => {
-                error!("Unexpected image format in CaptionTask::encode_result: {:?}", f);
-                return Err(CaptionError::Unavailable); // TODO: better error?
+                panic!("Unexpected image format in CaptionTask::encode_result: {:?}", f);
             }
         }
 

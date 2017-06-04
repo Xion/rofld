@@ -8,9 +8,11 @@ use std::path::{Path, PathBuf};
 
 use conv::TryFrom;
 use glob;
-use image::{self, DynamicImage, GenericImage, ImageFormat};
+use image::{self, DynamicImage, GenericImage, ImageError, ImageFormat};
 
 use util::animated_gif::{self, GifAnimation, is_gif, is_gif_animated};
+use super::Loader;
+use super::filesystem::PathLoader;
 
 
 /// Default image format to use when encoding image macros.
@@ -18,7 +20,7 @@ pub const DEFAULT_IMAGE_FORMAT: ImageFormat = ImageFormat::PNG;
 
 lazy_static! {
     /// Map of template file extensions to supported image formats.
-    static ref IMAGE_FORMAT_EXTENSIONS: HashMap<&'static str, ImageFormat> = hashmap!{
+    pub static ref IMAGE_FORMAT_EXTENSIONS: HashMap<&'static str, ImageFormat> = hashmap!{
         "gif" => ImageFormat::GIF,
         "jpeg" => ImageFormat::JPEG,
         "jpg" => ImageFormat::JPEG,
@@ -40,7 +42,9 @@ impl Template {
     /// Create the template for an image loaded from a file.
     /// Image format is figured out from the file extension.
     pub fn for_image<P: AsRef<Path>>(img: DynamicImage, path: P) -> Self {
-        let img_format = extension(path)
+        let extension = path.as_ref().extension().and_then(|e| e.to_str())
+            .map(|s| s.trim().to_lowercase());
+        let img_format = extension
             .and_then(|ext| IMAGE_FORMAT_EXTENSIONS.get(ext.as_str()).map(|f| *f))
             .unwrap_or(DEFAULT_IMAGE_FORMAT);
         Template::Image(img, img_format)
@@ -132,90 +136,39 @@ impl<P: AsRef<Path>> TryFrom<P> for Template {
     }
 }
 
-macro_attr! {
-    #[derive(Debug,
-             Error!("template loading error"), ErrorDisplay!, ErrorFrom!)]
-    pub enum TemplateError {
-        OpenImage(image::ImageError),
-        DecodeAnimatedGif(animated_gif::DecodeError),
-    }
+
+#[derive(Debug, Error)]
+pub enum TemplateError {
+    /// Error when opening a template image didn't succeed.
+    OpenImage(image::ImageError),
+    /// Error when opening a template's animated GIF didn't succeed.
+    DecodeAnimatedGif(animated_gif::DecodeError),
 }
 
 
-lazy_static! {
-    static ref TEMPLATE_DIR: PathBuf =
-        env::current_dir().unwrap().join("data").join("templates");
+#[derive(Debug)]
+pub struct TemplateLoader {
+    inner: PathLoader<'static>,
 }
 
-/// Load an image macro template.
-pub fn load(template: &str) -> Option<Template> {
-    debug!("Loading image macro template `{}`", template);
-
-    // TODO: what about ambiguous file stems? (same template name, different extension)
-    let template_path = try_opt!(glob_templates(template).next());
-    trace!("Path to image for template {} is {}", template, template_path.display());
-
-    match Template::try_from(&template_path) {
-        Ok(t) => {
-            debug!("Template `{}` loaded successfully", template);
-            Some(t)
-        }
-        Err(e) => {
-            error!("Failed to load template `{}` from {}: {}",
-                template, template_path.display(), e);
-            None
+impl TemplateLoader {
+    pub fn new<D: AsRef<Path>>(directory: D) -> Self {
+        let extensions = &["gif", "jpg", "jpeg", "png"];
+        TemplateLoader{
+            inner: PathLoader::for_extensions(directory, extensions),
         }
     }
 }
 
+impl Loader for TemplateLoader {
+    type Item = Template;
+    type Err = TemplateError;
 
-// Other
-
-/// List all available template names.
-pub fn list() -> Vec<String> {
-    debug!("Listing all available templates...");
-    let templates = glob_templates("*")
-        .fold(HashSet::new(), |mut ts, t| {
-            let name = t.file_stem().unwrap().to_str().unwrap().to_owned();
-            ts.insert(name); ts
-        });
-
-    debug!("{} template(s) found", templates.len());
-    let mut result: Vec<_> = templates.into_iter().collect();
-    result.sort();
-    result
-}
-
-
-// Utility functions
-
-/// Yield paths to template files that have the given file stem.
-fn glob_templates(stem: &str) -> Box<Iterator<Item=PathBuf>> {
-    let file_part = format!("{}.*", stem);
-    let pattern = format!("{}", TEMPLATE_DIR.join(file_part).display());
-    trace!("Globbing with {}", pattern);
-
-    let glob_iter = match glob::glob(&pattern) {
-        Ok(it) => it,
-        Err(e) => {
-            error!("Failed to glob over template files: {}", e);
-            return Box::new(iter::empty());
-        },
-    };
-
-    // We manually filter out unsupported file extensions because the `glob` crate
-    // doesn't support patterns like foo.{gif|png} (i.e. with braces).
-    Box::new(glob_iter
-        .filter_map(Result::ok)  // TODO: report errors about this
-        .filter(|f| {
-            let ext = extension(f);
-            IMAGE_FORMAT_EXTENSIONS.keys()
-                .any(|&e| Some(e) == ext.as_ref().map(|e| e.as_str()))
-        }))
-}
-
-/// Get the (useful part of) file extension from the path.
-fn extension<P: AsRef<Path>>(path: P) -> Option<String> {
-    path.as_ref().extension().and_then(|e| e.to_str())
-        .map(|s| s.trim().to_lowercase())
+    fn load<'n>(&self, name: &'n str) -> Result<Template, Self::Err> {
+        // TODO: add FileError variant to TemplateError
+        let path = self.inner.load(name).map_err(ImageError::IoError)?;
+        // TODO: move the loading code here from try_from()
+        use conv::TryFrom;
+        Template::try_from(path)
+    }
 }

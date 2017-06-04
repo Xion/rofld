@@ -109,8 +109,7 @@ impl fmt::Debug for GifFrame {
 // Decoding animated GIFs
 
 macro_attr! {
-    #[derive(Debug,
-             ErrorDisplay!, ErrorFrom!)]
+    #[derive(Debug, EnumFromInner!)]
     pub enum DecodeError {
         /// I/O error encountered when decoding GIF.
         Io(io::Error),
@@ -127,6 +126,15 @@ impl Error for DecodeError {
             DecodeError::Io(ref e) => Some(e),
             DecodeError::Gif(ref e) => Some(e),
             DecodeError::GifDispose(ref e) => Some(&**e),
+        }
+    }
+}
+impl fmt::Display for DecodeError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DecodeError::Io(ref e) => write!(fmt, "I/O error while decoding GIF: {}", e),
+            DecodeError::Gif(ref e) => write!(fmt, "cannot decode GIF file: {}", e),
+            DecodeError::GifDispose(ref e) => write!(fmt, "GIF rendering error: {}", e),
         }
     }
 }

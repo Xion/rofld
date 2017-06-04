@@ -1,5 +1,4 @@
-//! MOdule implementing cache for data needed to create image macros.
-//! Currently, this includes image templates and fonts.
+//! Module implementing a thread-safe LRU cache.
 
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
@@ -9,91 +8,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use lru_cache::LruCache;
-use rusttype::Font;
-
-use super::fonts;
-use super::templates::{self, Template};
-
-
-const DEFAULT_TEMPLATE_CAPACITY: usize = 128;
-const DEFAULT_FONT_CAPACITY: usize = 16;
-
-
-/// Cache for data used in rendering of image macros.
-/// The cache is designed to be thread-safe.
-pub struct Cache {
-    templates: ThreadSafeCache<String, Template>,
-    fonts: ThreadSafeCache<String, Font<'static>>,
-}
-
-impl Cache {
-    #[inline]
-    pub fn new() -> Self {
-        Cache{
-            templates: ThreadSafeCache::with_name(
-                "Cache::templates", DEFAULT_TEMPLATE_CAPACITY),
-            fonts: ThreadSafeCache::with_name(
-                "Cache::fonts", DEFAULT_FONT_CAPACITY),
-        }
-    }
-}
-
-// TODO: use pub(crate) on these when available
-impl Cache {
-    #[inline]
-    pub fn templates(&self) -> &ThreadSafeCache<String, Template> {
-        &self.templates
-    }
-
-    #[inline]
-    pub fn fonts(&self) -> &ThreadSafeCache<String, Font<'static>> {
-        &self.fonts
-    }
-}
-
-impl Cache {
-    /// Get the image for a template of given name.
-    /// If it doesn't exist in the cache, it will be loaded & cached.
-    pub fn get_template(&self, name: &str) -> Option<Arc<Template>> {
-        if let Some(img) = self.templates.get(name) {
-            trace!("Cache hit for template `{}`", name);
-            return Some(img);
-        }
-        debug!("Cache miss for template `{}`", name);
-        self.load_template(name)
-    }
-
-    /// Load template of given name into the cache, even if it exists there already.
-    pub fn load_template(&self, name: &str) -> Option<Arc<Template>> {
-        if let Some(tmpl) = templates::load(name) {
-            let tmpl = self.templates.put(name.to_owned(), tmpl);
-            trace!("Template `{}` cached", name);
-            return Some(tmpl);
-        }
-        None
-    }
-
-    /// Get the font with given name.
-    /// If it doesn't exist in the cache, it will be loaded & cached.
-    pub fn get_font(&self, name: &str) -> Option<Arc<Font<'static>>> {
-        if let Some(font) = self.fonts.get(name) {
-            trace!("Cache hit for font `{}`", name);
-            return Some(font);
-        }
-        debug!("Cache miss for font `{}`", name);
-        self.load_font(name)
-    }
-
-    /// Load font of given name into the cache, even if it exists there already.
-    pub fn load_font(&self, name: &str) -> Option<Arc<Font<'static>>> {
-        if let Some(font) = fonts::load(name) {
-            let font = self.fonts.put(name.to_owned(), font);
-            trace!("Font `{}` cached", name);
-            return Some(font);
-        }
-        None
-    }
-}
 
 
 /// A thread-safe cache of keys & cached values.
@@ -105,7 +19,7 @@ pub struct ThreadSafeCache<K, V, S = RandomState>
     where K: Eq + Hash, S: BuildHasher
 {
     inner: Mutex<LruCache<K, Arc<V>, S>>,
-    name: Option<&'static str>,
+    name: Option<&'static str>,  // TODO: remove
     // Cache statistics.
     hits: AtomicUsize,
     misses: AtomicUsize,

@@ -11,9 +11,9 @@ It makes memes.
 
 ## How?
 
-Run it with `cargo run` and hit its `/caption` endpoint:
+Run it with `./cargo server run` and hit its `/caption` endpoint:
 
-    $ cargo run
+    $ ./cargo server run
     INFO: rofld v0.1.0 (rev. b707bc5)
     INFO: Starting the server to listen on 0.0.0.0:1337...
 

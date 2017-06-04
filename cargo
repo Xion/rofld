@@ -1,0 +1,22 @@
+#!/bin/sh
+# Wrapper script to execute Cargo commands against particular crates
+
+BIN="$0"
+CRATE="$1" ; shift
+
+# In case of empty or flag-only command line, passthrough to Cargo directly
+if [ -z "$CRATE" ] || case $CRATE in -*) ;; *) false;; esac; then
+    cargo "$CRATE" "$@"
+    exit $?
+fi
+
+MANIFEST="./src/$CRATE/Cargo.toml"
+
+if [ ! -f "$MANIFEST" ]; then
+    echo >&2 "Usage: $0 CRATE [CARGO_ARGS]"
+    exit 2
+fi
+
+CMD="$1" ; shift
+set -x  # echo on
+cargo "$CMD" --manifest-path="$MANIFEST" "$@"

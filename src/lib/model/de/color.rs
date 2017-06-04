@@ -146,22 +146,25 @@ impl FromStr for Color {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ColorParseError {
+    /// Error while trying to parse a string as CSS color.
+    #[error(msg = "invalid CSS color syntax")]
     Css(CssColorParseError),
+    /// Error for when the color erroneously includes an alpha channel value.
+    #[error(no_from, non_std, msg =" color transparency not supported")]
     Alpha(f32),
 }
-derive_enum_from!(CssColorParseError => ColorParseError::Css);
 
-impl Error for ColorParseError {
-    fn description(&self) -> &str { "invalid color" }
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            ColorParseError::Css(ref e) => Some(e),
-            _ => None,
-        }
-    }
-}
+// impl Error for ColorParseError {
+//     fn description(&self) -> &str { "invalid color" }
+//     fn cause(&self) -> Option<&Error> {
+//         match *self {
+//             ColorParseError::Css(ref e) => Some(e),
+//             _ => None,
+//         }
+//     }
+// }
 
 // This is necessary because css_color_parser::ColorParseError doesn't impl PartialEq,
 // so we cannot #[derive] that ourselves :(
@@ -175,16 +178,16 @@ impl PartialEq<ColorParseError> for ColorParseError {
     }
 }
 
-impl fmt::Display for ColorParseError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ColorParseError::Css(_) => write!(fmt, "invalid CSS color syntax"),
-            ColorParseError::Alpha(a) => {
-                write!(fmt, "color transparency not supported (got alpha={})", a)
-            }
-        }
-    }
-}
+// impl fmt::Display for ColorParseError {
+//     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+//         match *self {
+//             ColorParseError::Css(_) => write!(fmt, "invalid CSS color syntax"),
+//             ColorParseError::Alpha(a) => {
+//                 write!(fmt, "color transparency not supported (got alpha={})", a)
+//             }
+//         }
+//     }
+// }
 
 
 #[cfg(test)]

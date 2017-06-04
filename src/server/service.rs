@@ -8,14 +8,15 @@ use futures::{BoxFuture, future, Future};
 use hyper::{self, Get, Post, StatusCode};
 use hyper::header::{Expires, ContentLength, ContentType};
 use hyper::server::{Service, Request, Response};
+use rofl::ThreadSafeCache;
 use serde_json::{self, Value as Json};
 use serde_qs;
 use time::precise_time_s;
 
-use caption::CAPTIONER;
 use ext::hyper::BodyExt;
-use model::ImageMacro;
-use resources::{list_fonts, list_templates, ThreadSafeCache};
+use handlers::{CAPTIONER, caption_macro};
+use handlers::list::{list_fonts, list_templates};
+use handlers::util::json_response;
 
 
 pub struct Rofl;
@@ -74,59 +75,9 @@ impl Rofl {
     /// Handle the image captioning request.
     fn handle_caption(&self, request: Request) ->  <Self as Service>::Future {
         let (method, url, _, _, body) = request.deconstruct();
-        body.into_bytes().and_then(move |bytes| {
-            let parsed_im: Result<_, Box<Error>> = match method {
-                Get => {
-                    let query = match url.query() {
-                        Some(q) => { trace!("Caption request query string: {}", q); q }
-                        None => { trace!("No query string found in caption request"); "" }
-                    };
-                    debug!("Decoding image macro spec from {} bytes of query string",
-                        query.len());
-                    serde_qs::from_str(query).map_err(Into::into)
-                },
-                Post => {
-                    trace!("Caption request body: {}", String::from_utf8_lossy(&bytes));
-                    debug!("Decoding image macro spec from {} bytes of JSON", bytes.len());
-                    serde_json::from_reader(&*bytes).map_err(Into::into)
-                },
-                m => {
-                    warn!("Unsupported HTTP method for caption request: {}", m);
-                    let response = Response::new().with_status(StatusCode::MethodNotAllowed)
-                        .with_header(ContentType::plaintext())
-                        .with_header(ContentLength(0));
-                    return future::ok(response).boxed();
-                },
-            };
-
-            let im: ImageMacro = match parsed_im {
-                Ok(im) => im,
-                Err(e) => {
-                    error!("Failed to decode image macro: {}", e);
-                    return future::ok(error_response(
-                        StatusCode::BadRequest,
-                        format!("cannot decode request: {}", e))).boxed();
-                },
-            };
-            debug!("Decoded {:?}", im);
-
-            CAPTIONER.render(im)
-                .map(|out| {
-                    let mime_type = match out.mime_type() {
-                        Some(mt) => mt,
-                        None => return error_response(
-                            StatusCode::InternalServerError,
-                            format!("invalid format: {:?}", out.format)),
-                    };
-                    Response::new()
-                        .with_header(ContentType(mime_type))
-                        .with_header(ContentLength(out.bytes.len() as u64))
-                        .with_body(out.bytes)
-                })
-                .or_else(|e| future::ok(error_response(e.status_code(), e)))
-                .boxed()
-        })
-        .boxed()
+        body.into_bytes()
+            .and_then(move |body| caption_macro(method, url, body))
+            .boxed()
     }
 
     /// Handle the template listing request.
@@ -147,8 +98,8 @@ impl Rofl {
     fn handle_stats(&self, _: Request) -> <Self as Service>::Future {
         let stats = json!({
             "cache": {
-                "templates": cache_stats(CAPTIONER.cache().templates()),
-                "fonts": cache_stats(CAPTIONER.cache().fonts()),
+                "templates": cache_stats(CAPTIONER.template_cache()),
+                "fonts": cache_stats(CAPTIONER.font_cache()),
             }
         });
         return future::ok(json_response(stats)).boxed();
@@ -187,22 +138,4 @@ impl Rofl {
             resp.headers_mut().set(Expires(far_future.into()));
         }
     }
-}
-
-
-// Utility functions
-
-/// Create a JSON response.
-fn json_response(json: Json) -> Response {
-    let body = json.to_string();
-    Response::new()
-        .with_header(ContentType(mime!(Application/Json)))
-        .with_header(ContentLength(body.len() as u64))
-        .with_body(body)
-}
-
-/// Create an erroneous JSON response.
-fn error_response<T: ToString>(status_code: StatusCode, message: T) -> Response {
-    json_response(json!({"error": message.to_string()}))
-        .with_status(status_code)
 }
