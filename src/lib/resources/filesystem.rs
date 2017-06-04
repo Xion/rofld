@@ -1,6 +1,5 @@
 //! Module defining and implementing resource loaders.
 
-use std::error::Error;
 use std::fmt;
 use std::fs::{self, File};
 use std::iter;
@@ -10,7 +9,7 @@ use std::sync::Arc;
 
 use glob;
 
-use super::{Loader, ThreadSafeCache};
+use super::Loader;
 
 
 /// Loader for file paths from given directory.

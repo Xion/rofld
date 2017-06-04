@@ -1,13 +1,7 @@
 //! Defines the output of a captioning operation.
 
-use std::io;
-use std::ops::Deref;
-
-use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
+use image::ImageFormat;
 use mime::Mime;
-
-use util::text::{self, Style};
-use super::error::CaptionError;
 
 
 /// Output of the captioning process.

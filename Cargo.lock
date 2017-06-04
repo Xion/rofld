@@ -27,7 +27,6 @@ dependencies = [
  "rofl 0.1.0",
  "rustc_version 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_qs 0.2.0 (git+https://github.com/samscott89/serde_qs.git?rev=071affd963ed88bfdcede6aa7b20626d3cf0f368)",
  "slog 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -38,7 +37,6 @@ dependencies = [
  "tokio-core 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-signal 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "try_opt 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "unreachable 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

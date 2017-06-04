@@ -1,5 +1,5 @@
 //!
-//! rofld  -- Lulz on demand
+//! rofld  -- Lulz server
 //!
 
              extern crate atomic;
@@ -25,7 +25,6 @@
              extern crate regex;
              extern crate rofl;
              extern crate serde;
-#[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_json;
              extern crate serde_qs;
              extern crate slog_envlogger;
@@ -35,7 +34,6 @@
              extern crate tokio_signal;
              extern crate tokio_timer;
              extern crate time;
-#[macro_use] extern crate try_opt;
              extern crate unreachable;
 
 // `slog` must precede `log` in declarations here, because we want to simultaneously:

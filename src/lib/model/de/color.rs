@@ -1,6 +1,5 @@
 //! Deserializer for the Color type.
 
-use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
 

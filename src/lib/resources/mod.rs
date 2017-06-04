@@ -5,6 +5,7 @@ mod fonts;
 mod templates;
 
 
+pub use self::filesystem::{BytesLoader, FileLoader};
 pub use self::fonts::{Font, FontLoader, FILE_EXTENSION as FONT_FILE_EXTENSION};
 pub use self::templates::{DEFAULT_IMAGE_FORMAT, IMAGE_FORMAT_EXTENSIONS,
                           Template, TemplateLoader, TemplateError};

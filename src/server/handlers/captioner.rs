@@ -55,11 +55,6 @@ impl Captioner {
 
 impl Captioner {
     #[inline]
-    pub fn engine(&self) -> &rofl::Engine {
-        &*self.engine
-    }
-
-    #[inline]
     pub fn template_cache(&self) -> &ThreadSafeCache<String, Template> {
         self.engine.template_cache().unwrap()
     }

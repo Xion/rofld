@@ -3,7 +3,7 @@
 use hyper::StatusCode;
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::Response;
-use serde_json::{self, Value as Json};
+use serde_json::Value as Json;
 
 
 /// Create a JSON response.

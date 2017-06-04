@@ -6,7 +6,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
-use mime::Mime;
 use rusttype::{point, Rect, vector};
 
 use model::{Caption, ImageMacro};

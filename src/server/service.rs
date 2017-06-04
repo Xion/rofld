@@ -1,16 +1,14 @@
 //! Module with the service that implements ALL the functionality.
 
-use std::error::Error;
 use std::hash::Hash;
 use std::time::{Duration, SystemTime};
 
 use futures::{BoxFuture, future, Future};
-use hyper::{self, Get, Post, StatusCode};
+use hyper::{self, Get, StatusCode};
 use hyper::header::{Expires, ContentLength, ContentType};
 use hyper::server::{Service, Request, Response};
 use rofl::ThreadSafeCache;
-use serde_json::{self, Value as Json};
-use serde_qs;
+use serde_json::Value as Json;
 use time::precise_time_s;
 
 use ext::hyper::BodyExt;

@@ -1,13 +1,11 @@
 //! Module handling image macro templates.
 
-use std::collections::{HashSet, HashMap};
-use std::env;
+use std::collections::HashMap;
 use std::fmt;
 use std::iter;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use conv::TryFrom;
-use glob;
 use image::{self, DynamicImage, GenericImage, ImageError, ImageFormat};
 
 use util::animated_gif::{self, GifAnimation, is_gif, is_gif_animated};

@@ -2,11 +2,8 @@
 
 use std::error::Error;
 use std::fmt;
-use std::fs;
-use std::io::{BufReader, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use glob;
 use rusttype::{self, FontCollection};
 
 use super::Loader;

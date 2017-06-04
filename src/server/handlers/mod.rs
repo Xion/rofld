@@ -7,7 +7,6 @@ pub mod util;
 
 use std::env;
 use std::error::Error;
-use std::hash::Hash;
 use std::path::PathBuf;
 
 use futures::{BoxFuture, future, Future};
