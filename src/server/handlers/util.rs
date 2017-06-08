@@ -3,6 +3,7 @@
 use hyper::StatusCode;
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::Response;
+use mime;
 use serde_json::Value as Json;
 
 
@@ -10,7 +11,7 @@ use serde_json::Value as Json;
 pub fn json_response(json: Json) -> Response {
     let body = json.to_string();
     Response::new()
-        .with_header(ContentType(mime!(Application/Json)))
+        .with_header(ContentType(mime::APPLICATION_JSON))
         .with_header(ContentLength(body.len() as u64))
         .with_body(body)
 }

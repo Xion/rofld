@@ -17,7 +17,7 @@
              extern crate lru_cache;
 #[macro_use] extern crate macro_attr;
 #[macro_use] extern crate maplit;
-#[macro_use] extern crate mime;
+             extern crate mime;
 #[macro_use] extern crate newtype_derive;
              extern crate num;
              extern crate rand;

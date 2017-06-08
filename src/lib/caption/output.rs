@@ -1,7 +1,7 @@
 //! Defines the output of a captioning operation.
 
 use image::ImageFormat;
-use mime::Mime;
+use mime::{self, Mime};
 
 
 /// Output of the captioning process.
@@ -20,9 +20,9 @@ impl CaptionOutput {
 impl CaptionOutput {
     pub fn mime_type(&self) -> Option<Mime> {
         match self.format {
-            ImageFormat::GIF => Some(mime!(Image/Gif)),
-            ImageFormat::JPEG => Some(mime!(Image/Jpeg)),
-            ImageFormat::PNG => Some(mime!(Image/Png)),
+            ImageFormat::GIF => Some(mime::IMAGE_GIF),
+            ImageFormat::JPEG => Some(mime::IMAGE_JPEG),
+            ImageFormat::PNG => Some(mime::IMAGE_PNG),
             _ => None,
         }
     }

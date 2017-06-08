@@ -41,7 +41,9 @@ before_install: |
 # Test script
 #
 
-script: cargo test --no-fail-fast
+script:
+  - ./cargo lib test --no-fail-fast
+  - ./cargo server test --no-fail-fast
 
 
 #

@@ -2,18 +2,31 @@
 # Wrapper script to execute Cargo commands against particular crates
 
 BIN="$0"
-CRATE="$1" ; shift
+ARG="$1" ; shift
 
 # In case of empty or flag-only command line, passthrough to Cargo directly
-if [ -z "$CRATE" ] || case $CRATE in -*) ;; *) false;; esac; then
-    cargo "$CRATE" "$@"
+if [ -z "$ARG" ] || case $ARG in -*) ;; *) false;; esac; then
+    cargo "$ARG" "$@"
     exit $?
 fi
 
+# Recognize some common commands and apply them to both crates
+if [ "$ARG" = 'build' ] || [ "$ARG" = 'test' ]; then
+    for name in $(ls ./src) ; do
+        if [ -d "./src/$name" ]; then
+            "$BIN" "$name" "$ARG" "$@" || exit 1
+        fi
+    done
+    exit $?
+fi
+
+
+# Otherwise treat the first argument as crate moniker
+CRATE="$ARG"
 MANIFEST="./src/$CRATE/Cargo.toml"
 
 if [ ! -f "$MANIFEST" ]; then
-    echo >&2 "Usage: $0 CRATE [CARGO_ARGS]"
+    echo >&2 "Usage: $BIN CRATE [CARGO_ARGS]"
     exit 2
 fi
 

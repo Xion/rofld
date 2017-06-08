@@ -18,7 +18,7 @@
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate macro_attr;
 #[macro_use] extern crate maplit;
-#[macro_use] extern crate mime;
+             extern crate mime;
              extern crate nix;
              extern crate num;
              extern crate rand;
@@ -43,7 +43,6 @@
 #[macro_use] extern crate log;
 
 
-#[cfg(test)]              extern crate serde_test;
 #[cfg(test)] #[macro_use] extern crate spectral;
 
 

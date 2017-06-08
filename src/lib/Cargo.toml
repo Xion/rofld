@@ -1,13 +1,13 @@
 [package]
 name = "rofl"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 description = "Lulz on demand"
 documentation = "https://github.com/Xion/rofld"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
-readme = "README.md"
-license = "GPLv2"
+readme = "../README.md"
+license = "BSD"
 
 [lib]
 name = "rofl"
@@ -31,7 +31,7 @@ log = "*"
 lru-cache = "0.1"
 macro-attr = "0.2"
 maplit = "0.1"
-mime = "0.2"
+mime = "0.3"
 newtype_derive = "0.1"
 num = "0.1"
 rand = "0.3"
