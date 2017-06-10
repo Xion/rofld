@@ -6,8 +6,12 @@ description = "Lulz server"
 documentation = "https://github.com/Xion/rofld"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
-readme = "../README.md"
+readme = "../../README.md"
 license = "GPLv2"
+publish = false
+
+[badges]
+travis-ci = { repository = "Xion/rofld" }
 
 [[bin]]
 name = "rofld"
@@ -40,9 +44,7 @@ regex = "*"
 rofl = { path = "../lib" }
 serde = "1.0"
 serde_json = "1.0"
-# TODO: change to crates.io when a version is published with a fix to
-# https://github.com/samscott89/serde_qs/issues/7
-serde_qs = { git = "https://github.com/samscott89/serde_qs.git", rev = "071affd963ed88bfdcede6aa7b20626d3cf0f368" }
+serde_qs = "0.2.1"
 slog = "1.5.2"
 slog-envlogger = "0.5"
 slog-stdlog = "1.1"

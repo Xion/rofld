@@ -28,7 +28,7 @@ dependencies = [
  "rustc_version 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_qs 0.2.0 (git+https://github.com/samscott89/serde_qs.git?rev=071affd963ed88bfdcede6aa7b20626d3cf0f368)",
+ "serde_qs 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog-envlogger 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog-stdlog 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -205,8 +205,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "css-color-parser"
-version = "0.1.1"
-source = "git+https://github.com/7thSigil/css-color-parser-rs.git#4738062248ebb392eccf81577170f00b9e397b5b"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lazy_static 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -785,7 +785,7 @@ version = "0.0.1"
 dependencies = [
  "color_quant 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "conv 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "css-color-parser 0.1.1 (git+https://github.com/7thSigil/css-color-parser-rs.git)",
+ "css-color-parser 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive-error 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "enum_derive 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "gif 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -807,7 +807,7 @@ dependencies = [
  "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_qs 0.2.0 (git+https://github.com/samscott89/serde_qs.git?rev=071affd963ed88bfdcede6aa7b20626d3cf0f368)",
+ "serde_qs 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_test 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "spectral 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -917,8 +917,8 @@ dependencies = [
 
 [[package]]
 name = "serde_qs"
-version = "0.2.0"
-source = "git+https://github.com/samscott89/serde_qs.git?rev=071affd963ed88bfdcede6aa7b20626d3cf0f368#071affd963ed88bfdcede6aa7b20626d3cf0f368"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "data-encoding 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dtoa 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1301,7 +1301,7 @@ dependencies = [
 "checksum color_quant 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a475fc4af42d83d28adf72968d9bcfaf035a1a9381642d8e85d8a04957767b0d"
 "checksum conv 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "78ff10625fd0ac447827aa30ea8b861fead473bb60aeb73af6c1c58caf0d1299"
 "checksum crossbeam 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)" = "0c5ea215664ca264da8a9d9c3be80d2eaf30923c259d03e870388eb927508f97"
-"checksum css-color-parser 0.1.1 (git+https://github.com/7thSigil/css-color-parser-rs.git)" = "<none>"
+"checksum css-color-parser 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9ccb6ce7ef97e6dc6e575e51b596c9889a5cc88a307b5ef177d215c61fd7581d"
 "checksum custom_derive 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "ef8ae57c4978a2acd8b869ce6b9ca1dfe817bff704c220209fdef2c0b75a01b9"
 "checksum data-encoding 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d867ddbf09de0b73e09ec798972fb7f870495a0893f6f736c1855448c5a56789"
 "checksum dbghelp-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "97590ba53bcb8ac28279161ca943a924d1fd4a8fb3fa63302591647c4fc5b850"
@@ -1389,7 +1389,7 @@ dependencies = [
 "checksum serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)" = "10552fad5500771f3902d0c5ba187c5881942b811b7ba0d8fbbfbf84d80806d3"
 "checksum serde_derive_internals 0.15.1 (registry+https://github.com/rust-lang/crates.io-index)" = "37aee4e0da52d801acfbc0cc219eb1eda7142112339726e427926a6f6ee65d3a"
 "checksum serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "48b04779552e92037212c3615370f6bd57a40ebba7f20e554ff9f55e41a69a7b"
-"checksum serde_qs 0.2.0 (git+https://github.com/samscott89/serde_qs.git?rev=071affd963ed88bfdcede6aa7b20626d3cf0f368)" = "<none>"
+"checksum serde_qs 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e96f6d3c48f0b44b2425d28d74ecd7e0f91984c355ad79cfe53514510d63d665"
 "checksum serde_test 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)" = "72991d2075f285ce7819be968318b76fe9e489b04c7152e9828f378f97c76fa6"
 "checksum slab 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "17b4fcaed89ab08ef143da37bc52adbcc04d4a69014f4c1208d6b51f0c47bc23"
 "checksum slog 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bab9d589681f7d6b9ca4ed5cc861779a392bca7beaae2f69f2341617415a78dc"

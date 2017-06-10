@@ -2,6 +2,8 @@
 
 Lulz on demand
 
+[![Build Status](https://img.shields.io/travis/Xion/rofld.svg)](https://travis-ci.org/Xion/rofld)
+
 ## What?
 
 _rofld_ (rofl-DEE) is a mission-critical HTTP service that should be a crucial part

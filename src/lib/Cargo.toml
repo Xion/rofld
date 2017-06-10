@@ -3,10 +3,12 @@ name = "rofl"
 version = "0.0.1"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 description = "Lulz on demand"
-documentation = "https://github.com/Xion/rofld"
+keywords = ["meme", "image macro", "caption", "gif", "image processing"]
+categories = ["multimedia::images", "visualization"]
+documentation = "https://docs.rs/rofl"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
-readme = "../README.md"
+readme = "../../README.md"
 license = "BSD"
 
 [lib]
@@ -17,8 +19,7 @@ crate-type = ["dylib", "rlib"]
 [dependencies]
 color_quant = "1.0"
 conv = "0.3"
-# TODO: change to crates.io version when a new version is published
-css-color-parser = { git = "https://github.com/7thSigil/css-color-parser-rs.git" }
+css-color-parser = "0.1.2"
 derive-error = "0.0.3"
 enum_derive = "*"
 gif = "0.9"
@@ -46,8 +47,6 @@ unreachable = "0.1"
 
 [dev-dependencies]
 serde_json = "1.0"
-# TODO: change to crates.io when a version is published with a fix to
-# https://github.com/samscott89/serde_qs/issues/7
-serde_qs = { git = "https://github.com/samscott89/serde_qs.git", rev = "071affd963ed88bfdcede6aa7b20626d3cf0f368" }
+serde_qs = "0.2.1"
 serde_test = "1.0"
 spectral = "0.6.0"
