@@ -108,27 +108,43 @@ impl fmt::Debug for GifFrame {
 
 // Decoding animated GIFs
 
-macro_attr! {
-    #[derive(Debug, EnumFromInner!)]
-    pub enum DecodeError {
-        /// I/O error encountered when decoding GIF.
-        Io(io::Error),
-        /// Error arising from the `gif` crate decoding process.
-        Gif(gif::DecodingError),
-        /// Error arising from the `gif-dispose` crate "rendering" process.
-        GifDispose(Box<Error>),
+#[derive(Debug)]
+pub enum DecodeError {
+    /// I/O error encountered when decoding GIF.
+    Io(io::Error),
+    /// Error arising from the `gif` crate decoding process.
+    Gif(gif::DecodingError),
+    /// Error arising from the `gif-dispose` crate "rendering" process.
+    GifDispose(String),
+}
+
+impl From<io::Error> for DecodeError {
+    fn from(inner: io::Error) -> Self {
+        DecodeError::Io(inner)
     }
 }
+impl From<gif::DecodingError> for DecodeError {
+    fn from(inner: gif::DecodingError) -> Self {
+        DecodeError::Gif(inner)
+    }
+}
+impl From<Box<Error>> for DecodeError {
+    fn from(inner: Box<Error>) -> Self {
+        DecodeError::GifDispose(format!("{}", inner))
+    }
+}
+
 impl Error for DecodeError {
     fn description(&self) -> &str { "GIF animation decode error" }
     fn cause(&self) -> Option<&Error> {
         match *self {
             DecodeError::Io(ref e) => Some(e),
             DecodeError::Gif(ref e) => Some(e),
-            DecodeError::GifDispose(ref e) => Some(&**e),
+            _ => None,
         }
     }
 }
+
 impl fmt::Display for DecodeError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -256,7 +272,7 @@ const RGBA_SIZE_BYTES: usize = 4;
 /// Quality parameter for the NeuQuant color quantizer.
 /// Range 1..=30. Lower values mean better quality.
 const COLOR_SAMPLE_FACTION: i32 = 12;
-// TODO: --gif_quality server param
+// TODO: make this an Engine configuration parameter
 
 /// Encode animated GIF.
 pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {

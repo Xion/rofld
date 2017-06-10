@@ -53,11 +53,11 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
     /// Perform the captioning task.
-    pub fn perform(self) -> Result<CaptionOutput, CaptionError> {
+    pub fn perform(self) -> Result<CaptionOutput, CaptionError<Tl, Fl>> {
         debug!("Rendering {:?}", self.image_macro);
 
         let template = self.engine.template_loader.load(&self.template)
-            .map_err(|_| CaptionError::Template(self.template.clone()))?;
+            .map_err(|e| CaptionError::Template(self.template.clone(), e))?;
         if template.is_animated() {
             debug!("Image macro uses an animated template `{}` with {} frames",
                 self.template, template.image_count());
@@ -106,7 +106,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
 
     /// Draw the text from ImageMacro on given image.
     /// Returns a new image.
-    fn draw_texts(&self, img: DynamicImage) -> Result<DynamicImage, CaptionError> {
+    fn draw_texts(&self, img: DynamicImage) -> Result<DynamicImage, CaptionError<Tl, Fl>> {
         // Rendering text requires alpha blending.
         let mut img = img;
         if img.as_rgba8().is_none() {
@@ -124,7 +124,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
     /// Draws a single caption text.
     /// Returns a new image.
     fn draw_single_caption(&self, img: DynamicImage,
-                           caption: &Caption) -> Result<DynamicImage, CaptionError> {
+                           caption: &Caption) -> Result<DynamicImage, CaptionError<Tl, Fl>> {
         let mut img = img;
 
         if caption.text.is_empty() {
@@ -137,7 +137,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
 
         trace!("Loading font `{}`...", caption.font);
         let font = self.engine.font_loader.load(&caption.font)
-            .map_err(|_| CaptionError::Font(caption.font.clone()))?;
+            .map_err(|e| CaptionError::Font(caption.font.clone(), e))?;
 
         trace!("Checking if font `{}` has all glyphs for caption: {}",
             caption.font, caption.text);
@@ -193,7 +193,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
 
     /// Encode final result as bytes of the appropriate image format.
     fn encode_result(&self, images: Vec<DynamicImage>,
-                     template: &Template) -> Result<Vec<u8>, CaptionError> {
+                     template: &Template) -> Result<Vec<u8>, CaptionError<Tl, Fl>> {
         let format = template.preferred_format();
         debug!("Encoding final image as {:?}...", format);
 
@@ -211,7 +211,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
                     .map_err(CaptionError::Encode)?;
             }
             ImageFormat::JPEG => {
-                let quality = 85;  // TODO: --jpeg_quality server parameter
+                let quality = 85;  // TODO: make this an Engine configuration parameter
                 trace!("Writing JPEG with quality {}", quality);
                 assert_eq!(1, images.len());
                 let img = &images[0];

@@ -86,7 +86,7 @@ impl<Tl, Fl> Engine<Tl, Fl>
     /// Render a given image macro,
     /// by captioning the template with the specified text(s).
     #[inline]
-    pub fn caption(&self, image_macro: ImageMacro) -> Result<CaptionOutput, CaptionError> {
+    pub fn caption(&self, image_macro: ImageMacro) -> Result<CaptionOutput, CaptionError<Tl, Fl>> {
         CaptionTask::new(image_macro, self.inner.clone()).perform()
     }
 }

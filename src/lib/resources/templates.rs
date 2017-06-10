@@ -2,11 +2,11 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::io;
 use std::iter;
 use std::path::Path;
 
-use conv::TryFrom;
-use image::{self, DynamicImage, GenericImage, ImageError, ImageFormat};
+use image::{self, DynamicImage, GenericImage, ImageFormat};
 
 use util::animated_gif::{self, GifAnimation, is_gif, is_gif_animated};
 use super::Loader;
@@ -111,11 +111,39 @@ impl fmt::Debug for Template {
 
 // Loading templates
 
-impl<P: AsRef<Path>> TryFrom<P> for Template {
+#[derive(Debug, Error)]
+pub enum TemplateError {
+    /// Error while loading the template file.
+    #[error(msg = "I/O error while loading template")]
+    File(io::Error),
+    /// Error when opening a template image didn't succeed.
+    #[error(msg = "error while opening template image")]
+    OpenImage(image::ImageError),
+    /// Error when opening a template's animated GIF didn't succeed.
+    #[error(msg = "error while opening animated GIF template")]
+    DecodeAnimatedGif(animated_gif::DecodeError),
+}
+
+
+#[derive(Debug)]
+pub struct TemplateLoader {
+    inner: PathLoader<'static>,
+}
+
+impl TemplateLoader {
+    pub fn new<D: AsRef<Path>>(directory: D) -> Self {
+        TemplateLoader{
+            inner: PathLoader::for_extensions(directory, IMAGE_FORMAT_EXTENSIONS.keys()),
+        }
+    }
+}
+
+impl Loader for TemplateLoader {
+    type Item = Template;
     type Err = TemplateError;
 
-    fn try_from(path: P) -> Result<Self, Self::Err> {
-        let path = path.as_ref();
+    fn load<'n>(&self, name: &'n str) -> Result<Template, Self::Err> {
+        let path = self.inner.load(name)?;
 
         // Use the `gif` crate to load animated GIFs.
         // Use the regular `image` crate to load any other (still) image.
@@ -131,42 +159,5 @@ impl<P: AsRef<Path>> TryFrom<P> for Template {
             let img = image::open(&path)?;
             Ok(Template::for_image(img, &path))
         }
-    }
-}
-
-
-#[derive(Debug, Error)]
-pub enum TemplateError {
-    /// Error when opening a template image didn't succeed.
-    OpenImage(image::ImageError),
-    /// Error when opening a template's animated GIF didn't succeed.
-    DecodeAnimatedGif(animated_gif::DecodeError),
-}
-
-
-#[derive(Debug)]
-pub struct TemplateLoader {
-    inner: PathLoader<'static>,
-}
-
-impl TemplateLoader {
-    pub fn new<D: AsRef<Path>>(directory: D) -> Self {
-        let extensions = &["gif", "jpg", "jpeg", "png"];
-        TemplateLoader{
-            inner: PathLoader::for_extensions(directory, extensions),
-        }
-    }
-}
-
-impl Loader for TemplateLoader {
-    type Item = Template;
-    type Err = TemplateError;
-
-    fn load<'n>(&self, name: &'n str) -> Result<Template, Self::Err> {
-        // TODO: add FileError variant to TemplateError
-        let path = self.inner.load(name).map_err(ImageError::IoError)?;
-        // TODO: move the loading code here from try_from()
-        use conv::TryFrom;
-        Template::try_from(path)
     }
 }

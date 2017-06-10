@@ -11,7 +11,7 @@ if [ -z "$ARG" ] || case $ARG in -*) ;; *) false;; esac; then
 fi
 
 # Recognize some common commands and apply them to both crates
-if [ "$ARG" = 'build' ] || [ "$ARG" = 'test' ]; then
+if [ "$ARG" = 'build' ] || [ "$ARG" = 'test' ] || [ "$ARG" = 'clean' ]; then
     for name in $(ls ./src) ; do
         if [ -d "./src/$name" ]; then
             "$BIN" "$name" "$ARG" "$@" || exit 1

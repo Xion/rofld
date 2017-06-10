@@ -6,11 +6,13 @@ mod templates;
 
 
 pub use self::filesystem::{BytesLoader, FileLoader};
-pub use self::fonts::{Font, FontLoader, FILE_EXTENSION as FONT_FILE_EXTENSION};
+pub use self::fonts::{Font, FontLoader, FontError,
+                      FILE_EXTENSION as FONT_FILE_EXTENSION};
 pub use self::templates::{DEFAULT_IMAGE_FORMAT, IMAGE_FORMAT_EXTENSIONS,
                           Template, TemplateLoader, TemplateError};
 
 
+use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
 
@@ -22,10 +24,7 @@ pub trait Loader {
     /// Type of resources that this loader can load.
     type Item;
     /// Error that may occur while loading the resource.
-    type Err;
-    // TODO: add an Error bound if this is ever resolved:
-    // https://github.com/rust-lang/rust/pull/30796#issuecomment-171085915
-    // or the TODO in FontLoader is fixed
+    type Err: Error;
 
     /// Load a resource of given name.
     fn load<'n>(&self, name: &'n str) -> Result<Self::Item, Self::Err>;
