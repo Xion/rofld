@@ -9,6 +9,7 @@
 #[macro_use] extern crate derive_error;
 #[macro_use] extern crate enum_derive;
              extern crate enum_set;
+             extern crate exitcode;
              extern crate futures;
              extern crate futures_cpupool;
              extern crate glob;
@@ -93,7 +94,7 @@ lazy_static! {
 fn main() {
     let opts = args::parse().unwrap_or_else(|e| {
         print_args_error(e).unwrap();
-        exit(64);  // EX_USAGE
+        exit(exitcode::USAGE);
     });
 
     logging::init(opts.verbosity).unwrap();
@@ -174,7 +175,7 @@ fn start_server(opts: Options) {
     debug!("Entering event loop...");
     server.run_until(ctrl_c).unwrap_or_else(|e| {
         error!("Failed to start the server's event loop: {}", e);
-        exit(74);  // EX_IOERR
+        exit(exitcode::IOERR);
     });
 
     info!("Server stopped.");
@@ -257,7 +258,7 @@ fn create_ctrl_c_handler(handle: &Handle) -> BoxFuture<(), ()> {
         .map(move |(x, i)| {
             match i {
                 1 => info!("Received shutdown signal..."),
-                i if i == max_ctrl_c_count => { info!("Aborted."); exit(0); },
+                i if i == max_ctrl_c_count => { info!("Aborted."); exit(exitcode::OK); },
                 i => debug!("Got repeated ^C, {} more to abort", max_ctrl_c_count - i),
             };
             x
