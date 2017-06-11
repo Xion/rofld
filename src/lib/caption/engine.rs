@@ -16,6 +16,9 @@ const DEFAULT_FONT_CAPACITY: usize = 16;
 
 
 /// Image captioning engine.
+///
+/// The engine is thread-safe (`Sync`) since normally you'd want the captioning
+/// to be performed in a background thread.
 #[derive(Clone, Debug)]
 pub struct Engine<Tl = TemplateLoader, Fl = FontLoader>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
@@ -77,14 +80,23 @@ impl<Tl, Fl> Engine<Tl, Fl>
             font_loader: CachingLoader::phony(font_loader),
         })
     }
+
+    // TODO: add a Builder that also allows to:
+    // * set the capacity of standard template/font caches
+    // * adjust GIF & JPEG quality parameters
+    // * adjust memory limit for GIF decoding
+    // (this will probably warrant a separate Config struct)
 }
 
 // Image macro captioning.
 impl<Tl, Fl> Engine<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
-    /// Render a given image macro,
-    /// by captioning the template with the specified text(s).
+    /// Render a given image macro by captioning the template with the specified text(s).
+    ///
+    /// Note that captioning is a CPU-intensive process and can be relatively lengthy,
+    /// especially if the template is an animated GIF.
+    /// It is recommended to execute it in a separate thread.
     #[inline]
     pub fn caption(&self, image_macro: ImageMacro) -> Result<CaptionOutput, CaptionError<Tl, Fl>> {
         CaptionTask::new(image_macro, self.inner.clone()).perform()
@@ -129,5 +141,20 @@ impl<Tl, Fl> Engine<Tl, Fl>
         } else {
             Some(self.inner.font_loader.cache())
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::Engine;
+
+    #[test]
+    fn thread_safe() {
+        fn assert_sync<T: Sync>() {}
+        fn assert_send<T: Send>() {}
+
+        assert_sync::<Engine>();
+        assert_send::<Engine>();
     }
 }

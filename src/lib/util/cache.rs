@@ -19,30 +19,24 @@ pub struct ThreadSafeCache<K, V, S = RandomState>
     where K: Eq + Hash, S: BuildHasher
 {
     inner: Mutex<LruCache<K, Arc<V>, S>>,
-    name: Option<&'static str>,  // TODO: remove
     // Cache statistics.
     hits: AtomicUsize,
     misses: AtomicUsize,
 }
 
 impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
-    #[allow(dead_code)]
+    #[inline]
     pub fn new(capacity: usize) -> Self {
-        Self::with_hasher(None, capacity, RandomState::new())
-    }
-
-    pub fn with_name(name: &'static str, capacity: usize) -> Self {
-        Self::with_hasher(Some(name), capacity, RandomState::new())
+        Self::with_hasher(capacity, RandomState::new())
     }
 }
 
 impl<K, V, S> ThreadSafeCache<K, V, S>
     where K: Eq + Hash, S: BuildHasher
 {
-    pub fn with_hasher(name: Option<&'static str>, capacity: usize, hasher: S) -> Self {
+    pub fn with_hasher(capacity: usize, hasher: S) -> Self {
         ThreadSafeCache{
             inner: Mutex::new(LruCache::with_hasher(capacity, hasher)),
-            name: name,
             hits: AtomicUsize::new(0),
             misses: AtomicUsize::new(0),
         }
@@ -50,8 +44,7 @@ impl<K, V, S> ThreadSafeCache<K, V, S>
 
     #[doc(hidden)]
     fn lock(&self) -> MutexGuard<LruCache<K, Arc<V>, S>> {
-        self.inner.lock().expect(&format!(
-            "{} mutex poisoned", self.name.unwrap_or("ThreadSafeCache")))
+        self.inner.lock().expect("ThreadSafeCache mutex poisoned")
     }
 }
 
@@ -137,9 +130,12 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
 
 // Getting counter values.
 impl<K :Eq + Hash, V> ThreadSafeCache<K, V> {
+    /// Returns the number of cache hits.
     pub fn hits(&self) -> usize {
         self.hits.load(Ordering::Relaxed)
     }
+
+    /// Returns the number of cache misses.
     pub fn misses(&self) -> usize {
         self.misses.load(Ordering::Relaxed)
     }
@@ -147,6 +143,11 @@ impl<K :Eq + Hash, V> ThreadSafeCache<K, V> {
 
 impl<K: Eq + Hash, V> fmt::Debug for ThreadSafeCache<K, V> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "ThreadSafeCache {{{}}}", self.name.unwrap_or("<unnamed>"))
+        let mut ds = fmt.debug_struct("ThreadSafeCache");
+        if let Ok(inner) = self.inner.try_lock() {
+            ds.field("capacity", &inner.capacity());
+            ds.field("len", &inner.len());
+        }
+        ds.finish()
     }
 }

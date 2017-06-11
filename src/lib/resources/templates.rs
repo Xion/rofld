@@ -28,6 +28,9 @@ lazy_static! {
 
 
 /// Represents an image macro template.
+///
+/// Currently, templates can either be regular (still) images,
+/// or animations loaded from a GIF file.
 #[derive(Clone)]
 pub enum Template {
     /// Single still image, loaded from some image format.
@@ -48,6 +51,7 @@ impl Template {
         Template::Image(img, img_format)
     }
 
+    /// Create the template for an animation loaded from a GIF file.
     #[inline]
     pub fn for_gif_animation(gif_anim: GifAnimation) -> Self {
         Template::Animation(gif_anim)
@@ -109,8 +113,7 @@ impl fmt::Debug for Template {
 }
 
 
-// Loading templates
-
+/// Error that may occur during template load.
 #[derive(Debug, Error)]
 pub enum TemplateError {
     /// Error while loading the template file.
@@ -125,12 +128,16 @@ pub enum TemplateError {
 }
 
 
+/// Loader for templates stored in a directory.
+/// Template names are translated directly into file names, loaded, and cached.
 #[derive(Debug)]
 pub struct TemplateLoader {
     inner: PathLoader<'static>,
 }
 
 impl TemplateLoader {
+    /// Create a new template loader.
+    #[inline]
     pub fn new<D: AsRef<Path>>(directory: D) -> Self {
         TemplateLoader{
             inner: PathLoader::for_extensions(directory, IMAGE_FORMAT_EXTENSIONS.keys()),

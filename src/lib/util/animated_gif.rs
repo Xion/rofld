@@ -1,5 +1,5 @@
 //! Module handling the decoding & encoding of animated GIFs.
-//! This is done by wrapping over the API exposes by several image-related crates.
+//! This is done by wrapping over the API exposed by several image-related crates.
 
 use std::error::Error;
 use std::fmt;
@@ -17,6 +17,7 @@ use image::{DynamicImage, GenericImage, RgbaImage};
 // Data structures
 
 /// Animation loaded from a GIF file.
+/// The frames are kept in their decoded (RGBA) form.
 #[derive(Clone)]
 pub struct GifAnimation {
     /// Width of the animation canvas (logical screen).
@@ -66,7 +67,7 @@ pub struct GifFrame {
     /// The image of the frame.
     pub image: DynamicImage,
     /// gif::Frame structure containing just the metadata of the frame.
-    /// The actual buffer is emptied and converted into the image.
+    /// The actual buffer is emptied and converted into the `image`.
     pub metadata: gif::Frame<'static>,
 }
 
@@ -102,56 +103,6 @@ impl fmt::Debug for GifFrame {
             .field("image", &format_args!("{}x{}", w, h))
             .field("metadata", &self.metadata)
             .finish()
-    }
-}
-
-
-// Decoding animated GIFs
-
-#[derive(Debug)]
-pub enum DecodeError {
-    /// I/O error encountered when decoding GIF.
-    Io(io::Error),
-    /// Error arising from the `gif` crate decoding process.
-    Gif(gif::DecodingError),
-    /// Error arising from the `gif-dispose` crate "rendering" process.
-    GifDispose(String),
-}
-
-impl From<io::Error> for DecodeError {
-    fn from(inner: io::Error) -> Self {
-        DecodeError::Io(inner)
-    }
-}
-impl From<gif::DecodingError> for DecodeError {
-    fn from(inner: gif::DecodingError) -> Self {
-        DecodeError::Gif(inner)
-    }
-}
-impl From<Box<Error>> for DecodeError {
-    fn from(inner: Box<Error>) -> Self {
-        DecodeError::GifDispose(format!("{}", inner))
-    }
-}
-
-impl Error for DecodeError {
-    fn description(&self) -> &str { "GIF animation decode error" }
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            DecodeError::Io(ref e) => Some(e),
-            DecodeError::Gif(ref e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for DecodeError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            DecodeError::Io(ref e) => write!(fmt, "I/O error while decoding GIF: {}", e),
-            DecodeError::Gif(ref e) => write!(fmt, "cannot decode GIF file: {}", e),
-            DecodeError::GifDispose(ref e) => write!(fmt, "GIF rendering error: {}", e),
-        }
     }
 }
 
@@ -207,11 +158,60 @@ pub fn is_gif_animated<P: AsRef<Path>>(path: P) -> Option<bool> {
     Some(false)
 }
 
-// TODO: server command line param
+// TODO: make this an Engine configuration parameter
 const MEMORY_LIMIT: gif::MemoryLimit = gif::MemoryLimit(32 * 1024 * 1024);
 
 
 // Decoding animated GIFs
+
+/// Error that can occur while decoding animated GIF.
+#[derive(Debug)]
+pub enum DecodeError {
+    /// I/O error encountered when decoding GIF.
+    Io(io::Error),
+    /// Error arising from the `gif` crate decoding process.
+    Gif(gif::DecodingError),
+    /// Error arising from the `gif-dispose` crate "rendering" process.
+    GifDispose(String),
+}
+
+impl From<io::Error> for DecodeError {
+    fn from(inner: io::Error) -> Self {
+        DecodeError::Io(inner)
+    }
+}
+impl From<gif::DecodingError> for DecodeError {
+    fn from(inner: gif::DecodingError) -> Self {
+        DecodeError::Gif(inner)
+    }
+}
+impl From<Box<Error>> for DecodeError {
+    fn from(inner: Box<Error>) -> Self {
+        DecodeError::GifDispose(format!("{}", inner))
+    }
+}
+
+impl Error for DecodeError {
+    fn description(&self) -> &str { "GIF animation decode error" }
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            DecodeError::Io(ref e) => Some(e),
+            DecodeError::Gif(ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DecodeError::Io(ref e) => write!(fmt, "I/O error while decoding GIF: {}", e),
+            DecodeError::Gif(ref e) => write!(fmt, "cannot decode GIF file: {}", e),
+            DecodeError::GifDispose(ref e) => write!(fmt, "GIF rendering error: {}", e),
+        }
+    }
+}
+
 
 /// Decode animated GIF from given file.
 pub fn decode_from_file<P: AsRef<Path>>(path: P) -> Result<GifAnimation, DecodeError> {
@@ -303,8 +303,8 @@ pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,
                                  output: W) -> io::Result<()> {
     assert_eq!(orig_anim.frames_count(), images.len());
 
-    // Create a new GifAnimation which is a shallow copy of frame metadata,
-    // with frame images replaced with given DynamicImages.
+    // Create a new GifAnimation which is a shallow copy of the frame metadata,
+    // where frame images are replaced with given DynamicImages.
     let mut new_frames = vec![];
     for (orig_frame, image) in orig_anim.iter_frames().zip(images.into_iter()) {
         let new_frame = GifFrame{
@@ -329,9 +329,9 @@ pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,
 /// Low-level function that performs color quantization of an image.
 ///
 /// Returns (buffer, palette, transparent) where:
-/// * buffer is the image with pixel being palette indexes
-/// * palette is a contiguous buffer of RGB colors of the palette used
-/// * transparent is optional palette index of the transparent color
+/// * `buffer` is the image where pixels are palette indexes
+/// * `palette` is a contiguous buffer of RGB colors in the palette used
+/// * `transparent` is optional palette index of the transparent color
 pub fn quantize_image(image: &DynamicImage) -> (Vec<u8>, Vec<u8>, Option<u8>) {
     let mut pixels = image.raw_pixels().to_owned();
 

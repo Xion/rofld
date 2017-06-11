@@ -145,6 +145,8 @@ impl FromStr for Color {
     }
 }
 
+
+/// Error that may occur while deserializing the Color.
 #[derive(Debug, Error)]
 pub enum ColorParseError {
     /// Error while trying to parse a string as CSS color.
@@ -154,16 +156,6 @@ pub enum ColorParseError {
     #[error(no_from, non_std, msg =" color transparency not supported")]
     Alpha(f32),
 }
-
-// impl Error for ColorParseError {
-//     fn description(&self) -> &str { "invalid color" }
-//     fn cause(&self) -> Option<&Error> {
-//         match *self {
-//             ColorParseError::Css(ref e) => Some(e),
-//             _ => None,
-//         }
-//     }
-// }
 
 // This is necessary because css_color_parser::ColorParseError doesn't impl PartialEq,
 // so we cannot #[derive] that ourselves :(
@@ -176,17 +168,6 @@ impl PartialEq<ColorParseError> for ColorParseError {
         }
     }
 }
-
-// impl fmt::Display for ColorParseError {
-//     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-//         match *self {
-//             ColorParseError::Css(_) => write!(fmt, "invalid CSS color syntax"),
-//             ColorParseError::Alpha(a) => {
-//                 write!(fmt, "color transparency not supported (got alpha={})", a)
-//             }
-//         }
-//     }
-// }
 
 
 #[cfg(test)]

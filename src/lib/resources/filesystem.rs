@@ -25,11 +25,15 @@ pub struct PathLoader<'pl> {
 }
 
 impl<'pl> PathLoader<'pl> {
+    /// Create a loader which gives out paths to any file within a directory
+    /// whose base name matches the requested resource name.
     #[inline]
     pub fn new<D: AsRef<Path>>(directory: D) -> Self {
         Self::with_predicate(directory, |_| true)
     }
 
+    /// Create a loader which only gives out paths to files
+    /// in given directory that have the specified extension.
     #[inline]
     pub fn for_extension<D: AsRef<Path>, S>(directory: D, extension: S) -> Self
         where S: ToString
@@ -38,7 +42,7 @@ impl<'pl> PathLoader<'pl> {
     }
 
     /// Create a loader which only gives out paths to files
-    /// that have one of the extensions given.
+    /// in given directory that have one of the extensions specified.
     pub fn for_extensions<D: AsRef<Path>, I, S>(directory: D, extensions: I) -> Self
         where I: IntoIterator<Item=S>, S: ToString
     {
@@ -54,6 +58,8 @@ impl<'pl> PathLoader<'pl> {
         })
     }
 
+    /// Create a loader which gives out paths to files within a directory
+    /// that additionally match a specified boolean predicate.
     pub fn with_predicate<D, P>(directory: D, predicate: P) -> Self
         where D: AsRef<Path>, P: Fn(&Path) -> bool + Send + Sync + 'pl
     {
@@ -117,11 +123,14 @@ pub struct FileLoader<'pl> {
 
 // Constructors that for convenience are delegating to the PathLoader ones.
 impl<'pl> FileLoader<'pl> {
+    /// Create loader for files within given directory.
     #[inline]
     pub fn new<D: AsRef<Path>>(directory: D) -> Self {
         FileLoader{inner: PathLoader::new(directory)}
     }
 
+    /// Create loader for files within given directory
+    /// that have the specified file extension.
     #[inline]
     pub fn for_extension<D: AsRef<Path>, S>(directory: D, extension: S) -> Self
         where S: ToString
@@ -129,7 +138,7 @@ impl<'pl> FileLoader<'pl> {
         FileLoader{inner: PathLoader::for_extension(directory, extension)}
     }
 
-    /// Create a loader which only loads files
+    /// Create a loader which only loads files from the specified directory
     /// that have one of the extensions given.
     #[inline]
     pub fn for_extensions<D: AsRef<Path>, I, S>(directory: D, extensions: I) -> Self
@@ -138,6 +147,8 @@ impl<'pl> FileLoader<'pl> {
         FileLoader{inner: PathLoader::for_extensions(directory, extensions)}
     }
 
+    /// Create a loader which only loads files from the specified directory
+    /// that additionally match a specified boolean predicate for their paths.
     #[inline]
     pub fn with_path_predicate<D, P>(directory: D, predicate: P) -> Self
         where D: AsRef<Path>, P: Fn(&Path) -> bool + Send + Sync + 'pl
@@ -160,12 +171,14 @@ impl<'pl> Loader for FileLoader<'pl> {
 
 
 /// Wrapper around FileLoader that loads the entire content of the files.
+/// The content is given out as simple vector of bytes, i.e. `Vec<u8>`.
 #[derive(Debug)]
 pub struct BytesLoader<'fl> {
     inner: FileLoader<'fl>,
 }
 
 impl<'fl> BytesLoader<'fl> {
+    /// Wrap a FileLoader within the BytesLoader.
     #[inline]
     pub fn new(inner: FileLoader<'fl>) -> Self {
         BytesLoader{inner}

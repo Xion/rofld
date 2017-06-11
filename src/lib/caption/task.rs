@@ -9,7 +9,7 @@ use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
 use rusttype::{point, Rect, vector};
 
 use model::{Caption, ImageMacro};
-use resources::{Loader, Font, Template};
+use resources::{Loader, Font, FontLoader, Template, TemplateLoader};
 use util::animated_gif;
 use util::text::{self, Style};
 use super::error::CaptionError;
@@ -19,12 +19,12 @@ use super::output::CaptionOutput;
 
 /// Represents a single captioning task and contains all the relevant logic.
 ///
-/// This is a separate struct so that the rendering state (e.g. the cache)
-/// can be easily carried between its methods.
+/// This is a separate struct so that the engine doesn't have to be
+/// carried explicitly between its methods.
 ///
 /// All the code here is executed in a background thread,
 /// and so it can be synchronous.
-pub(super) struct CaptionTask<Tl, Fl>
+pub(super) struct CaptionTask<Tl = TemplateLoader, Fl = FontLoader>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
     image_macro: ImageMacro,
@@ -257,5 +257,20 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
         }
 
         Ok(result)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::CaptionTask;
+
+    #[test]
+    fn thread_safe() {
+        fn assert_sync<T: Sync>() {}
+        fn assert_send<T: Send>() {}
+
+        assert_sync::<CaptionTask>();
+        assert_send::<CaptionTask>();
     }
 }

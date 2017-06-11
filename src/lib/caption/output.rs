@@ -12,12 +12,14 @@ pub struct CaptionOutput {
 }
 
 impl CaptionOutput {
+    #[inline]
     pub fn new(format: ImageFormat, bytes: Vec<u8>) -> Self {
         CaptionOutput{format, bytes}
     }
 }
 
 impl CaptionOutput {
+    /// The MIME type that matches output's format.
     pub fn mime_type(&self) -> Option<Mime> {
         match self.format {
             ImageFormat::GIF => Some(mime::IMAGE_GIF),

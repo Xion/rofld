@@ -27,6 +27,7 @@ impl fmt::Debug for Font {
 }
 
 
+/// Error that may occur during font load.
 #[derive(Debug)]
 pub enum FontError {
     /// Error while loading the font file.
@@ -59,12 +60,16 @@ impl fmt::Display for FontError {
 }
 
 
+/// Loader for fonts stored in a directory.
+/// Font names are translated directly into file names, loaded, and cached.
 #[derive(Debug)]
 pub struct FontLoader {
     inner: BytesLoader<'static>,
 }
 
 impl FontLoader {
+    /// Create a new font loader.
+    #[inline]
     pub fn new<D: AsRef<Path>>(directory: D) -> Self {
         FontLoader{
             inner: BytesLoader::new(

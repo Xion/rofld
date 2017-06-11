@@ -11,8 +11,11 @@ use resources::{Loader, Font, FontLoader, Template, TemplateLoader};
 pub enum CaptionError<Tl = TemplateLoader, Fl = FontLoader>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
+    /// Error while loading the template.
     Template(String, Tl::Err),
+    /// Error while loading the font.
     Font(String, Fl::Err),
+    /// Error while encoding the final image macro.
     Encode(io::Error),
 }
 
@@ -50,5 +53,20 @@ impl<Tl, Fl> fmt::Display for CaptionError<Tl, Fl>
             CaptionError::Font(ref f, ref e) => write!(fmt, "cannot load font `{}`: {}", f, e),
             CaptionError::Encode(ref e) => write!(fmt, "failed to encode the  final image: {}", e),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::CaptionError;
+
+    #[test]
+    fn thread_safe() {
+        fn assert_sync<T: Sync>() {}
+        fn assert_send<T: Send>() {}
+
+        assert_sync::<CaptionError>();
+        assert_send::<CaptionError>();
     }
 }
