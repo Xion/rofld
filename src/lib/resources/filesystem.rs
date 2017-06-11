@@ -14,7 +14,7 @@ use super::Loader;
 
 /// Loader for file paths from given directory.
 ///
-/// The resources here are just file *paths* (std::path::PathBuf),
+/// The resources here are just file *paths* (`std::path::PathBuf`),
 /// and no substantial "loading" is performing (only path resolution).
 ///
 /// This isn't particularly useful on its own, but can be wrapped around
@@ -114,7 +114,7 @@ impl<'pl> fmt::Debug for PathLoader<'pl> {
 
 /// Loader for files in given directory.
 ///
-/// The resources it doles out are just file handles (std::fs::File).
+/// The resources it doles out are just file handles (`std::fs::File`).
 /// Wrappers around this loaded can then implement their own decoding.
 #[derive(Debug)]
 pub struct FileLoader<'pl> {
@@ -170,7 +170,8 @@ impl<'pl> Loader for FileLoader<'pl> {
 }
 
 
-/// Wrapper around FileLoader that loads the entire content of the files.
+/// Wrapper around `FileLoader` that loads the entire content of the files.
+///
 /// The content is given out as simple vector of bytes, i.e. `Vec<u8>`.
 #[derive(Debug)]
 pub struct BytesLoader<'fl> {

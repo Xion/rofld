@@ -19,6 +19,9 @@ const DEFAULT_FONT_CAPACITY: usize = 16;
 ///
 /// The engine is thread-safe (`Sync`) since normally you'd want the captioning
 /// to be performed in a background thread.
+///
+/// *Note*: `Engine` implements `Clone`
+/// by merely cloning a shared reference to the underlying object.
 #[derive(Clone, Debug)]
 pub struct Engine<Tl = TemplateLoader, Fl = FontLoader>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>

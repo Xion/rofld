@@ -7,7 +7,7 @@ use futures::{BoxFuture, future, Future};
 use hyper::{self, Get, StatusCode};
 use hyper::header::{Expires, ContentLength, ContentType};
 use hyper::server::{Service, Request, Response};
-use rofl::ThreadSafeCache;
+use rofl::cache::ThreadSafeCache;
 use serde_json::Value as Json;
 use time::precise_time_s;
 

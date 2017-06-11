@@ -73,12 +73,12 @@ pub fn caption_macro(method: Method, url: Uri, body: Vec<u8>) -> BoxFuture<Respo
                 Some(mt) => mt,
                 None => return error_response(
                     StatusCode::InternalServerError,
-                    format!("invalid format: {:?}", out.format)),
+                    format!("invalid format: {:?}", out.format())),
             };
             Response::new()
                 .with_header(ContentType(mime_type))
-                .with_header(ContentLength(out.bytes.len() as u64))
-                .with_body(out.bytes)
+                .with_header(ContentLength(out.len() as u64))
+                .with_body(out.into_bytes())
         })
         .or_else(|e| future::ok(error_response(status_code_for(&e), e)))
         .boxed()

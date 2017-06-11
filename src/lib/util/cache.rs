@@ -11,9 +11,9 @@ use lru_cache::LruCache;
 
 
 /// A thread-safe cache of keys & cached values.
-/// Actual values stored in the cache are Arc<V>'s.
+/// Actual values stored in the cache are `Arc<V>'`s.
 ///
-/// This is a wrapper around LruCache that also counts various cache statistics,
+/// This is a wrapper around `LruCache` that also counts various cache statistics,
 /// like cache hits or cache misses.
 pub struct ThreadSafeCache<K, V, S = RandomState>
     where K: Eq + Hash, S: BuildHasher

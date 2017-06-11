@@ -8,7 +8,7 @@ categories = ["multimedia::images", "visualization"]
 documentation = "https://docs.rs/rofl"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
-readme = "../../README.md"
+# TODO: add library-specific README
 license = "BSD"
 
 [lib]

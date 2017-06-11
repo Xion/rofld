@@ -11,11 +11,12 @@ use super::Loader;
 use super::filesystem::{BytesLoader, FileLoader};
 
 
+/// File extension of font files.
 pub const FILE_EXTENSION: &'static str = "ttf";
 
 
-/// Font that can be used to caption image macros.
 macro_attr! {
+    /// Font that can be used to caption image macros.
     #[derive(NewtypeDeref!, NewtypeFrom!)]
     pub struct Font(rusttype::Font<'static>);
     // TODO: add font name for better Debug
@@ -61,6 +62,7 @@ impl fmt::Display for FontError {
 
 
 /// Loader for fonts stored in a directory.
+///
 /// Font names are translated directly into file names, loaded, and cached.
 #[derive(Debug)]
 pub struct FontLoader {

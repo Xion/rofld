@@ -1,6 +1,63 @@
+//! *Lulz on demand!*
 //!
-//! rofl  -- Lulz on demand
+//! This here `rofl` crate, aptly named, is capable of the extraordinary feat
+//! of putting text on images. And not just still images: it does cover animated GIFs as well!
 //!
+//! In other words, the crate can be used to create _memes_,
+//! which purists generally refer to as _image macros_.
+//!
+//! # Much example
+//!
+//! ```rust
+//! extern crate rofl;
+//!
+//! # use std::error::Error;
+//! # use std::io::Write;
+//! # use std:: fs;
+//! #
+//! # fn zoidberg() -> Result<(), Box<Error>> {
+//! let engine = rofl::Engine::new("data/templates", "data/fonts");
+//! let image_macro = rofl::ImageMacro {
+//!     template: "zoidberg".into(),
+//!     captions: vec![
+//!         rofl::Caption::text_at(rofl::VAlign::Top, "Need an example?"),
+//!         rofl::Caption::text_at(rofl::VAlign::Bottom, "Why not Zoidberg?"),
+//!     ],
+//!     ..rofl::ImageMacro::default()
+//! };
+//! let output = engine.caption(image_macro)?;
+//!
+//! let mut file = fs::OpenOptions::new().write(true).open("zoidberg.png")?;
+//! file.write_all(&*output)?;
+//! #   Ok(())
+//! # }
+//! ```
+//!
+//! # Very concepts
+//!
+//! To create memes, you need two types of media resources (in addition to impeccable wit):
+//!
+//! * _templates_ -- named images & animated GIFs that we can put text on
+//! * _fonts_ to render the text with (like `"Impact"` or `"Comic Sans"`)
+//!
+//! Those resources have to be provided to the captioning `Engine`.
+//!
+//! In the simple above, they are just files contained within some directories.
+//! If you're doing something more complicated --
+//! like a website where users can upload their own images --
+//! you can implement your own `Loader`s for templates or even fonts.
+//!
+//! A meme is defined by the `ImageMacro` structure.
+//! These can be deserialized from JSON or query strings if desired.
+//!
+//! # Wow
+//!
+//! Go forth and meme!
+
+
+// TODO: uncomment when we're closer to document everything, and eventually change to deny()
+// #![warn(missing_docs)]
+
 
              extern crate color_quant;
              extern crate conv;
@@ -46,4 +103,4 @@ mod util;
 pub use caption::*;
 pub use model::*;
 pub use resources::*;
-pub use util::cache::*;
+pub use util::{animated_gif, cache};

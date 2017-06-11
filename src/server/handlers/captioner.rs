@@ -9,7 +9,8 @@ use atomic::Atomic;
 use futures::{BoxFuture, future, Future};
 use futures_cpupool::{self, CpuPool};
 use rand::{self, thread_rng};
-use rofl::{self, CaptionOutput, CaptionError, Font, ImageMacro, Template, ThreadSafeCache};
+use rofl::{self, CaptionOutput, CaptionError, Font, ImageMacro, Template};
+use rofl::cache::ThreadSafeCache;
 use tokio_timer::{TimeoutError, Timer, TimerError};
 
 use args::Resource;
@@ -151,7 +152,7 @@ impl Captioner {
                 match engine.caption(im) {
                     Ok(out) => {
                         debug!("Successfully rendered {} as {:?}, final result size: {} bytes",
-                            im_repr, out.format, out.bytes.len());
+                            im_repr, out.format(), out.len());
                         future::ok(out)
                     },
                     Err(e) => {

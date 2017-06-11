@@ -1,4 +1,5 @@
 //! Module handling the decoding & encoding of animated GIFs.
+//!
 //! This is done by wrapping over the API exposed by several image-related crates.
 
 use std::error::Error;

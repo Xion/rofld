@@ -9,7 +9,7 @@ pub const DEFAULT_FONT: &'static str = "Impact";
 /// Default color of the text.
 pub const DEFAULT_COLOR: Color = Color(0xff, 0xff, 0xff);
 /// Default color of the text outline.
-/// This should be the inversion of DEFAULT_COLOR.
+/// This is the inversion of `DEFAULT_COLOR`.
 pub const DEFAULT_OUTLINE_COLOR: Color = Color(0x0, 0x0, 0x0);
 
 /// Default horizontal alignment of text.

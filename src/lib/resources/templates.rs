@@ -18,6 +18,7 @@ pub const DEFAULT_IMAGE_FORMAT: ImageFormat = ImageFormat::PNG;
 
 lazy_static! {
     /// Map of template file extensions to supported image formats.
+    #[doc(hidden)]
     pub static ref IMAGE_FORMAT_EXTENSIONS: HashMap<&'static str, ImageFormat> = hashmap!{
         "gif" => ImageFormat::GIF,
         "jpeg" => ImageFormat::JPEG,
@@ -129,6 +130,7 @@ pub enum TemplateError {
 
 
 /// Loader for templates stored in a directory.
+///
 /// Template names are translated directly into file names, loaded, and cached.
 #[derive(Debug)]
 pub struct TemplateLoader {
