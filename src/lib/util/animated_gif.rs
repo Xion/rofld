@@ -35,11 +35,13 @@ pub struct GifAnimation {
 }
 
 impl GifAnimation {
+    /// How many frames there are in the animation.
     #[inline]
     pub fn frames_count(&self) -> usize {
         self.frames.len()
     }
 
+    /// Iterate over the frames in animation.
     #[inline]
     pub fn iter_frames<'a>(&'a self) -> Box<Iterator<Item=&'a GifFrame> + 'a> {
         Box::new(self.frames.iter())
@@ -275,7 +277,7 @@ const RGBA_SIZE_BYTES: usize = 4;
 const COLOR_SAMPLE_FACTION: i32 = 12;
 // TODO: make this an Engine configuration parameter
 
-/// Encode animated GIF.
+/// Encode an animated GIF.
 pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
     let output = BgColorFixer::new(anim.bg_color.map(|i| i as u8), output);
     let mut encoder =
@@ -297,6 +299,7 @@ pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
 }
 
 /// Encode animated GIF with its frames modified (replaced with given images).
+///
 /// Original animation will be used to provide metadata for GIF frames
 /// (frame delays, transitions, etc.).
 pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,

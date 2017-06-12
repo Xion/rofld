@@ -151,6 +151,7 @@ impl Loader for TemplateLoader {
     type Item = Template;
     type Err = TemplateError;
 
+    /// Load a template given its name.
     fn load<'n>(&self, name: &'n str) -> Result<Template, Self::Err> {
         let path = self.inner.load(name)?;
 

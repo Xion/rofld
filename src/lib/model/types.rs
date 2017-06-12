@@ -1,5 +1,7 @@
 //! Module defining the model types.
 
+#![allow(missing_docs)]  // Because of IterVariants used by HAlign & VAlign.
+
 use std::fmt;
 
 use image::{Rgb, Rgba};
@@ -8,22 +10,43 @@ use super::constants::{DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_HALIGN, DEF
 
 
 /// Describes an image macro. Used as an input structure.
+///
+/// *Note*: If `width` or `height` is provided, the result will be resized
+/// whilst preserving the original aspect ratio of the template.
+/// This means the final size of the image may be smaller than requested.
 #[derive(Default)]
 pub struct ImageMacro {
+    /// Name of the template used by this image macro.
     pub template: String,
+    /// Width of the rendered macro (if it is to be different from the template).
     pub width: Option<u32>,
+    /// Height of the rendered macro (if it is to be different from the template).
     pub height: Option<u32>,
+    /// Text captions to render over the template.
     pub captions: Vec<Caption>,
 }
 
 /// Describes a single piece of text rendered on the image macro.
+///
+/// Use the provided `Caption::text_at` method to create it
+/// with most of the fields set to default values.
 #[derive(Clone, PartialEq)]
 pub struct Caption {
+    /// Text to render.
+    ///
+    /// Newline characters (`"\n"`) cause the text to wrap.
     pub text: String,
+    /// Horizontal alignment of the caption within the template rectangle.
+    /// Default is `HAlign::Center`.
     pub halign: HAlign,
+    /// Vertical alignment of the caption within the template rectangle.
     pub valign: VAlign,
+    /// Name of the font to render the caption with. Defaults to `"Impact".
     pub font: String,  // TODO: this could be a Cow, but needs lifetime param
+    /// Text color, defaults to white.
     pub color: Color,
+    /// Text of the color outline, if any. Defaults to black.
+    /// Pass `None` to draw the text without outline.
     pub outline: Option<Color>,
 }
 
@@ -33,8 +56,11 @@ macro_attr! {
              Deserialize, IterVariants!(HAligns))]
     #[serde(rename_all = "lowercase")]
     pub enum HAlign {
+        /// Left alignment.
         Left,
+        /// Horizontal centering.
         Center,
+        /// Right alignment.
         Right,
     }
 }
@@ -45,8 +71,11 @@ macro_attr! {
              Deserialize, IterVariants!(VAligns))]
     #[serde(rename_all = "lowercase")]
     pub enum VAlign {
+        /// Top alignment.
         Top,
+        /// Vertical centering.
         Middle,
+        /// Bottom alignment.
         Bottom,
     }
 }
@@ -57,6 +86,7 @@ pub struct Color(pub u8, pub u8, pub u8);
 
 
 impl ImageMacro {
+    /// Whether the image macro includes any text.
     #[inline]
     pub fn has_text(&self) -> bool {
         self.captions.len() > 0 && self.captions.iter().any(|c| !c.text.is_empty())
@@ -130,12 +160,26 @@ impl fmt::Debug for Caption {
 }
 
 impl Color {
+    /// Create a white color.
+    #[inline]
+    pub fn white() -> Self {
+        Self::gray(0xff)
+    }
+
+    /// Create a black color.
+    #[inline]
+    pub fn black() -> Self {
+        Self::gray(0xff)
+    }
+
+    /// Create a gray color of given intensity.
     #[inline]
     pub fn gray(value: u8) -> Self {
         Color(value, value, value)
     }
 }
 impl Color {
+    /// Convert the color to its chromatic inverse.
     #[inline]
     pub fn invert(self) -> Self {
         let Color(r, g, b) = self;
@@ -143,13 +187,13 @@ impl Color {
     }
 
     #[inline]
-    pub fn to_rgb(&self) -> Rgb<u8> {
+    pub(crate) fn to_rgb(&self) -> Rgb<u8> {
         let &Color(r, g, b) = self;
         Rgb{data: [r, g, b]}
     }
 
     #[inline]
-    pub fn to_rgba(&self, alpha: u8) -> Rgba<u8> {
+    pub(crate) fn to_rgba(&self, alpha: u8) -> Rgba<u8> {
         let &Color(r, g, b) = self;
         Rgba{data: [r, g, b, alpha]}
     }

@@ -42,6 +42,7 @@ pub struct CachingLoader<L: Loader> {
 }
 
 impl<L: Loader> CachingLoader<L> {
+    /// Wrap a `Loader` with a `CachingLoader` of given capacity.
     #[inline]
     pub fn new(inner: L, capacity: usize) -> Self {
         CachingLoader{
@@ -66,6 +67,7 @@ impl<L: Loader> CachingLoader<L> {
 }
 
 impl<L: Loader> CachingLoader<L> {
+    /// Returns a reference to the loader's cache.
     #[inline]
     pub fn cache(&self) -> &ThreadSafeCache<String, L::Item> {
         &self.cache
@@ -93,6 +95,7 @@ impl<L: Loader> Loader for CachingLoader<L> {
     }
 }
 
+// TODO: add <L: Loader+Debug> impl when specialization is stable
 impl<L: Loader> fmt::Debug for CachingLoader<L> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("CachingLoader")

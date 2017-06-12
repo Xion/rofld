@@ -40,14 +40,14 @@
 //! * _templates_ -- named images & animated GIFs that we can put text on
 //! * _fonts_ to render the text with (like `"Impact"` or `"Comic Sans"`)
 //!
-//! Those resources have to be provided to the captioning `Engine`.
+//! Those resources have to be provided to the captioning [`Engine`](struct.Engine.html).
 //!
 //! In the simple above, they are just files contained within some directories.
 //! If you're doing something more complicated --
 //! like a website where users can upload their own images --
-//! you can implement your own `Loader`s for templates or even fonts.
+//! you can implement your own [`Loader`s](trait.Loader.html) for templates or even fonts.
 //!
-//! A meme is defined by the `ImageMacro` structure.
+//! A meme is defined by [the `ImageMacro` structure](struct.ImageMacro.html).
 //! These can be deserialized from JSON or query strings if desired.
 //!
 //! # Wow
@@ -55,8 +55,7 @@
 //! Go forth and meme!
 
 
-// TODO: uncomment when we're closer to document everything, and eventually change to deny()
-// #![warn(missing_docs)]
+#![deny(missing_docs)]
 
 
              extern crate color_quant;

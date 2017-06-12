@@ -25,6 +25,7 @@ pub struct ThreadSafeCache<K, V, S = RandomState>
 }
 
 impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
+    /// Create the cache with given capacity.
     #[inline]
     pub fn new(capacity: usize) -> Self {
         Self::with_hasher(capacity, RandomState::new())
@@ -34,6 +35,7 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
 impl<K, V, S> ThreadSafeCache<K, V, S>
     where K: Eq + Hash, S: BuildHasher
 {
+    /// Create the cache with custom hasher and given capacity.
     pub fn with_hasher(capacity: usize, hasher: S) -> Self {
         ThreadSafeCache{
             inner: Mutex::new(LruCache::with_hasher(capacity, hasher)),
@@ -51,6 +53,7 @@ impl<K, V, S> ThreadSafeCache<K, V, S>
 // LruCache interface wrappers.
 #[allow(dead_code)]
 impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
+    /// Check if the cache contains given key.
     pub fn contains_key<Q>(&self, key: &Q) -> bool
         where K: Borrow<Q>, Q: ?Sized + Eq + Hash
     {
@@ -59,6 +62,7 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
         y
     }
 
+    /// Get the element corresponding to given key if it's present in the cache.
     pub fn get<Q>(&self, key: &Q) -> Option<Arc<V>>
         where K: Borrow<Q>, Q: ?Sized + Eq + Hash
     {
@@ -68,17 +72,24 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
         }
     }
 
-    /// Like insert(), except always returns the (Arc'd) value that's under the cached key.
+    /// Put an item into cache under given key.
+    ///
+    /// This is like insert(), except it always returns the (`Arc`'d) value
+    /// that's under the cached key.
     /// If it wasn't there before, it will be the new value just inserted (i.e. `v`).
     pub fn put(&self, k: K, v: V) -> Arc<V> {
         let value = Arc::new(v);
         self.lock().insert(k, value.clone()).unwrap_or_else(|| value)
     }
 
+    /// Insert an item into the cache under given key.
+    ///
+    /// If the key is already present in the cache, returns its corresponding value.
     pub fn insert(&self, k: K, v: V) -> Option<Arc<V>> {
         self.lock().insert(k, Arc::new(v))
     }
 
+    /// Removes a key from the cache, if present, and returns its value.
     pub fn remove<Q>(&self, key: &Q) -> Option<Arc<V>>
         where K: Borrow<Q>, Q: ?Sized + Eq + Hash
     {
@@ -88,26 +99,35 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
         }
     }
 
+    /// Cache capacity.
     pub fn capacity(&self) -> usize {
         self.lock().capacity()
     }
 
+    /// Set the capacity of the cache.
+    ///
+    /// If the new capacity is smaller than current size of the cache,
+    /// elements will be removed from it in the LRU manner.
     pub fn set_capacity(&self, capacity: usize) {
         self.lock().set_capacity(capacity);
     }
 
+    /// Remove the least recently used element from the cache.
     pub fn remove_lru(&self) -> Option<(K, Arc<V>)> {
         self.lock().remove_lru()
     }
 
+    /// Current size of the cache.
     pub fn len(&self) -> usize {
         self.lock().len()
     }
 
+    /// Whether the cache is empty.
     pub fn is_empty(&self) -> bool {
         self.lock().is_empty()
     }
 
+    /// Remove all elements from the cache.
     pub fn clear(&self) {
         self.lock().clear()
     }

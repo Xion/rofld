@@ -84,6 +84,7 @@ impl Loader for FontLoader {
     type Item = Font;
     type Err = FontError;
 
+    /// Load a font with given name.
     fn load<'n>(&self, name: &'n str) -> Result<Font, Self::Err> {
         let bytes = self.inner.load(name).map_err(FontError::File)?;
 

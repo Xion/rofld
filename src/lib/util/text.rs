@@ -41,6 +41,7 @@ pub struct Alignment {
 }
 
 impl Alignment {
+    /// Create a new `Alignment` struct.
     #[inline]
     pub fn new(vertical: VAlign, horizontal: HAlign) -> Self {
         Alignment{vertical: vertical, horizontal: horizontal}
@@ -66,6 +67,7 @@ impl fmt::Debug for Alignment {
 
 impl Alignment {
     /// The origin point for this alignment within given rectangle.
+    ///
     /// Returns one of nine possible points at the edges of the rectangle.
     pub fn origin_within<N>(&self, rect: Rect<N>) -> Point<N>
         where N: Copy + One + Add<Output=N> + Sub<Output=N> + Div<Output=N>
@@ -94,6 +96,7 @@ pub struct Style<'f> {
 }
 
 impl<'f> Style<'f> {
+    /// Create a new `Style`.
     #[inline]
     pub fn new(font: &'f Font, size: f32, color: Color) -> Self {
         if size <= 0.0 {
@@ -102,6 +105,7 @@ impl<'f> Style<'f> {
         Style{font, size, color}
     }
 
+    /// Get a text `Scale` corresponding to the `Style`.
     #[inline]
     pub fn scale(&self) -> Scale {
         Scale::uniform(self.size)

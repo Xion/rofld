@@ -163,6 +163,7 @@ impl<'pl> Loader for FileLoader<'pl> {
     type Item = File;
     type Err = io::Error;
 
+    /// Load a `File` resource from loader's directory.
     fn load<'n>(&self, name: &'n str) -> Result<Self::Item, Self::Err> {
         let path = self.inner.load(name)?;
         fs::OpenOptions::new().read(true).open(path)
