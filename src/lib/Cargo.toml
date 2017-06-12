@@ -3,13 +3,13 @@ name = "rofl"
 version = "0.0.1"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 description = "Lulz on demand"
-keywords = ["meme", "image macro", "caption", "gif", "image processing"]
+keywords = ["meme", "image-macro", "caption", "gif", "image-processing"]
 categories = ["multimedia::images", "visualization"]
 documentation = "https://docs.rs/rofl"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
 # TODO: add library-specific README
-license = "BSD"
+license = "BSD-3-Clause"
 
 [lib]
 name = "rofl"
@@ -21,14 +21,14 @@ color_quant = "1.0"
 conv = "0.3"
 css-color-parser = "0.1.2"
 derive-error = "0.0.3"
-enum_derive = "*"
+enum_derive = "0.1"
 gif = "0.9"
 gif-dispose = "1.0.1"
 glob = "0.2"
 image = "0.12"
 itertools = "0.6"
-lazy_static = "*"
-log = "*"
+lazy_static = "0.2"
+log = "0.3"
 lru-cache = "0.1"
 macro-attr = "0.2"
 maplit = "0.1"
@@ -41,7 +41,7 @@ rusttype = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
 time = "0.1"
-try_opt = "*"
+try_opt = "0.1"
 unicode-normalization = "0.1"
 unreachable = "0.1"
 
