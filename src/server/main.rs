@@ -235,8 +235,10 @@ fn preload_resources<I: Iterator<Item=Resource>>(preload: I) {
     }
     let finish = time::precise_time_s();
 
-    debug!("Done preloading resources ({}), total time elapsed: {:.3} secs",
-        format_resources(&*preload), finish - start);
+    if log_enabled!(Debug) {
+        debug!("Done preloading resources ({}), total time elapsed: {:.3} secs",
+            format_resources(&*preload), finish - start);
+    }
 
     fn format_resources(resources: &[Resource]) -> String {
         resources.iter()

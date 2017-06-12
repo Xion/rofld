@@ -8,6 +8,8 @@ use std::fmt;
 use std::mem;
 use std::net::{AddrParseError, SocketAddr};
 use std::num::ParseIntError;
+use std::slice;
+use std::str;
 use std::time::Duration;
 
 use clap::{self, AppSettings, Arg, ArgMatches};
@@ -238,11 +240,16 @@ impl<'s> TryFrom<&'s str> for Resource {
     fn try_from(s: &'s str) -> Result<Self, Self::Err> {
         let s = s.trim_right_matches("s");  // accept singular/plural
         for r in Resource::iter_variants() {
-            if format!("{:?}", r).to_lowercase() == s {
+            if r.to_string().trim_right_matches("s") == s {
                 return Ok(r);
             }
         }
         Err(Unrepresentable(s.to_owned()))
+    }
+}
+impl ToString for Resource {
+    fn to_string(&self) -> String {
+        format!("{:?}s", self).to_lowercase()
     }
 }
 
@@ -277,16 +284,6 @@ const DEFAULT_REQUEST_TIMEOUT: u32 = 10;
 const DEFAULT_SHUTDOWN_TIMEOUT: u32 = 30;
 
 
-/// Converts a value to a "static" (though not &'static) str
-/// so it can be used with APIs that only accept borrowed strings.
-macro_rules! to_static_str(
-    ($v:expr) => ({
-        lazy_static! { static ref DUMMY: String = $v.to_string(); }
-        &*DUMMY as &str
-    })
-);
-
-
 /// Create the parser for application's command line.
 fn create_parser<'p>() -> Parser<'p> {
     let mut parser = Parser::new(*NAME);
@@ -307,7 +304,7 @@ fn create_parser<'p>() -> Parser<'p> {
         .arg(Arg::with_name(ARG_ADDR)
             .value_name("ADDRESS:PORT")
             .required(false)
-            .default_value(to_static_str!(format!("{}:{}", DEFAULT_HOST, DEFAULT_PORT)))
+            .default_value(to_static_str(format!("{}:{}", DEFAULT_HOST, DEFAULT_PORT)))
             .help("Binds the server to given address")
             .long_help(concat!(
                 "The address and/or port for the server to listen on.\n\n",
@@ -354,7 +351,7 @@ fn create_parser<'p>() -> Parser<'p> {
             .long("request-timeout")
             .value_name("SECS")
             .required(false)
-            .default_value(to_static_str!(
+            .default_value(to_static_str(
                 // Disable request timeouts in debug mode unless specifically requested.
                 if cfg!(debug_assertions) { 0 } else { DEFAULT_REQUEST_TIMEOUT }
             ))
@@ -363,7 +360,7 @@ fn create_parser<'p>() -> Parser<'p> {
             .long("shutdown-timeout")
             .value_name("SECS")
             .required(false)
-            .default_value(to_static_str!(
+            .default_value(to_static_str(
                 // Disable waiting for server to shut down in debug mode by default.
                 if cfg!(debug_assertions) { 0 } else { DEFAULT_SHUTDOWN_TIMEOUT }
             ))
@@ -383,6 +380,17 @@ fn create_parser<'p>() -> Parser<'p> {
 
         .help_short("H")
         .version_short("V")
+}
+
+/// Convert a value to a &'static str by leaking the memory of an owned String.
+fn to_static_str<T: ToString>(v: T) -> &'static str {
+    let s = v.to_string();
+    unsafe {
+        let (ptr, len) = (s.as_ptr(), s.len());
+        mem::forget(s);
+        let bytes: &'static [u8] = slice::from_raw_parts(ptr, len);
+        str::from_utf8_unchecked(bytes)
+    }
 }
 
 
