@@ -42,7 +42,7 @@
 //!
 //! Those resources have to be provided to the captioning [`Engine`](struct.Engine.html).
 //!
-//! In the simple above, they are just files contained within some directories.
+//! In the simple example above, they are just files contained within some directories.
 //! If you're doing something more complicated --
 //! like a website where users can upload their own images --
 //! you can implement your own [`Loader`s](trait.Loader.html) for templates or even fonts.
@@ -58,6 +58,7 @@
 #![deny(missing_docs)]
 
 
+             extern crate antidote;
              extern crate color_quant;
              extern crate conv;
              extern crate css_color_parser;

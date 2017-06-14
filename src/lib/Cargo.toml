@@ -17,6 +17,7 @@ path = "lib.rs"
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
+antidote = "1.0"
 color_quant = "1.0"
 conv = "0.3"
 css-color-parser = "0.1.2"

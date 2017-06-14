@@ -18,6 +18,7 @@ name = "rofld"
 path = "main.rs"
 
 [dependencies]
+antidote = "1.0"
 atomic = "0.3"
 ansi_term = "0.9"
 clap = { version = "2.19", features = ["suggestions"] }

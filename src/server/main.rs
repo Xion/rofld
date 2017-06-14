@@ -2,6 +2,7 @@
 //! rofld  -- Lulz server
 //!
 
+             extern crate antidote;
              extern crate atomic;
              extern crate ansi_term;
 #[macro_use] extern crate clap;

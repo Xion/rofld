@@ -48,6 +48,7 @@ impl<Tl, Fl> From<Inner<Tl, Fl>> for Engine<Tl, Fl>
 // Constructors.
 impl Engine<TemplateLoader, FontLoader> {
     /// Create an Engine which loads templates & fonts from given directory paths.
+    ///
     /// When loaded, both resources will be cached in memory (LRU cache).
     #[inline]
     pub fn new<Dt, Df>(template_directory: Dt, font_directory: Df) -> Self
@@ -63,6 +64,7 @@ impl<Tl, Fl> Engine<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
     /// Create an Engine that uses given loaders for templates & font.
+    ///
     /// When loaded, both resources will be cached in memory (LRU cache).
     #[inline]
     pub fn with_loaders(template_loader: Tl, font_loader: Fl) -> Self {
@@ -73,6 +75,7 @@ impl<Tl, Fl> Engine<Tl, Fl>
     }
 
     /// Create an Engine that uses given template & font loaders directly.
+    ///
     /// Any caching scheme, if necessary, should be implemented by loaders themselves.
     #[inline]
     pub fn with_raw_loaders(template_loader: Tl, font_loader: Fl) -> Self {

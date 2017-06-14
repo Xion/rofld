@@ -4,9 +4,10 @@ use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use std::fmt;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use antidote::Mutex;
 use lru_cache::LruCache;
 
 
@@ -43,11 +44,6 @@ impl<K, V, S> ThreadSafeCache<K, V, S>
             misses: AtomicUsize::new(0),
         }
     }
-
-    #[doc(hidden)]
-    fn lock(&self) -> MutexGuard<LruCache<K, Arc<V>, S>> {
-        self.inner.lock().expect("ThreadSafeCache mutex poisoned")
-    }
 }
 
 // LruCache interface wrappers.
@@ -57,7 +53,7 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
     pub fn contains_key<Q>(&self, key: &Q) -> bool
         where K: Borrow<Q>, Q: ?Sized + Eq + Hash
     {
-        let y = self.lock().contains_key(key);
+        let y = self.inner.lock().contains_key(key);
         if !y { self.miss(); }
         y
     }
@@ -66,7 +62,7 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
     pub fn get<Q>(&self, key: &Q) -> Option<Arc<V>>
         where K: Borrow<Q>, Q: ?Sized + Eq + Hash
     {
-        match self.lock().get_mut(key) {
+        match self.inner.lock().get_mut(key) {
             Some(v) => { self.hit(); Some(v.clone()) }
             None => { self.miss(); None }
         }
@@ -79,21 +75,21 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
     /// If it wasn't there before, it will be the new value just inserted (i.e. `v`).
     pub fn put(&self, k: K, v: V) -> Arc<V> {
         let value = Arc::new(v);
-        self.lock().insert(k, value.clone()).unwrap_or_else(|| value)
+        self.inner.lock().insert(k, value.clone()).unwrap_or_else(|| value)
     }
 
     /// Insert an item into the cache under given key.
     ///
     /// If the key is already present in the cache, returns its corresponding value.
     pub fn insert(&self, k: K, v: V) -> Option<Arc<V>> {
-        self.lock().insert(k, Arc::new(v))
+        self.inner.lock().insert(k, Arc::new(v))
     }
 
     /// Removes a key from the cache, if present, and returns its value.
     pub fn remove<Q>(&self, key: &Q) -> Option<Arc<V>>
         where K: Borrow<Q>, Q: ?Sized + Eq + Hash
     {
-        match self.lock().remove(key) {
+        match self.inner.lock().remove(key) {
             r @ Some(_) => { self.hit(); r }
             r @ None => { self.miss(); r }
         }
@@ -101,7 +97,7 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
 
     /// Cache capacity.
     pub fn capacity(&self) -> usize {
-        self.lock().capacity()
+        self.inner.lock().capacity()
     }
 
     /// Set the capacity of the cache.
@@ -109,27 +105,27 @@ impl<K: Eq + Hash, V> ThreadSafeCache<K, V> {
     /// If the new capacity is smaller than current size of the cache,
     /// elements will be removed from it in the LRU manner.
     pub fn set_capacity(&self, capacity: usize) {
-        self.lock().set_capacity(capacity);
+        self.inner.lock().set_capacity(capacity);
     }
 
     /// Remove the least recently used element from the cache.
     pub fn remove_lru(&self) -> Option<(K, Arc<V>)> {
-        self.lock().remove_lru()
+        self.inner.lock().remove_lru()
     }
 
     /// Current size of the cache.
     pub fn len(&self) -> usize {
-        self.lock().len()
+        self.inner.lock().len()
     }
 
     /// Whether the cache is empty.
     pub fn is_empty(&self) -> bool {
-        self.lock().is_empty()
+        self.inner.lock().is_empty()
     }
 
     /// Remove all elements from the cache.
     pub fn clear(&self) {
-        self.lock().clear()
+        self.inner.lock().clear()
     }
 }
 
@@ -168,6 +164,8 @@ impl<K: Eq + Hash, V> fmt::Debug for ThreadSafeCache<K, V> {
             ds.field("capacity", &inner.capacity());
             ds.field("len", &inner.len());
         }
+        ds.field("hits", &self.hits());
+        ds.field("misses", &self.misses());
         ds.finish()
     }
 }

@@ -2,9 +2,10 @@
 //! This is used by the /caption request handler.
 
 use std::time::Duration;
-use std::sync::{Arc, Mutex, TryLockError};
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
+use antidote::Mutex;
 use atomic::Atomic;
 use futures::{BoxFuture, future, Future};
 use futures_cpupool::{self, CpuPool};
@@ -79,7 +80,7 @@ impl Captioner {
         }
 
         let pool = builder.create();
-        *self.pool.lock().unwrap() = pool;
+        *self.pool.lock() = pool;
         self
     }
 
@@ -130,16 +131,12 @@ impl Captioner {
     pub fn render(&self, im: ImageMacro) -> BoxFuture<CaptionOutput, RenderError> {
         let pool = match self.pool.try_lock() {
             Ok(p) => p,
-            Err(TryLockError::WouldBlock) => {
+            Err(_) => {
+                // Indicates we'd have to wait for the pool lock.
                 // This should be only possible when set_thread_count() happens
                 // to have been called at the exact same moment.
                 warn!("Could not immediately lock CpuPool to render {:?}", im);
                 // TODO: retry a few times, probably with exponential backoff
-                return future::err(RenderError::Unavailable).boxed();
-            },
-            Err(e) => {
-                // TODO: is this a fatal error?
-                error!("Error while locking CpuPool for rendering {:?}: {}", im, e);
                 return future::err(RenderError::Unavailable).boxed();
             },
         };
