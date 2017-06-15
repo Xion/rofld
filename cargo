@@ -4,7 +4,7 @@
 BIN="$0"
 ARG="$1" ; shift
 
-# In case of empty or flag-only command line, passthrough to Cargo directly
+# In case of empty or flag-only command line, pass through to Cargo directly
 if [ -z "$ARG" ] || case $ARG in -*) ;; *) false;; esac; then
     cargo "$ARG" "$@"
     exit $?
@@ -12,14 +12,14 @@ fi
 
 # Recognize some common commands and apply them to both crates
 if [ "$ARG" = 'build' ] || [ "$ARG" = 'test' ] || [ "$ARG" = 'clean' ]; then
-    for name in $(ls ./src) ; do
+    for path in ./src/* ; do
+        name="$(basename "$path")"
         if [ -d "./src/$name" ]; then
             "$BIN" "$name" "$ARG" "$@" || exit 1
         fi
     done
     exit $?
 fi
-
 
 # Otherwise treat the first argument as crate moniker
 CRATE="$ARG"
@@ -31,5 +31,13 @@ if [ ! -f "$MANIFEST" ]; then
 fi
 
 CMD="$1" ; shift
+
+# Undertake default actions for some crates if no command is given
+if [ -z "$CMD" ]; then
+    case "$CRATE" in
+        server) CMD='run' ;;
+    esac
+fi
+
 set -x  # echo on
 cargo "$CMD" --manifest-path="$MANIFEST" "$@"
