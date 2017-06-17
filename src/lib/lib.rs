@@ -16,7 +16,10 @@
 //! # use std:: fs;
 //! #
 //! # fn zoidberg() -> Result<(), Box<Error>> {
-//! let engine = rofl::Engine::new("data/templates", "data/fonts");
+//! let engine = rofl::EngineBuilder::new()
+//!     .template_directory("data/templates")
+//!     .font_directory("data/fonts")
+//!     .build().unwrap();
 //! let image_macro = rofl::ImageMacro {
 //!     template: "zoidberg".into(),
 //!     captions: vec![
@@ -64,6 +67,7 @@
              extern crate css_color_parser;
 #[macro_use] extern crate derive_error;
 #[macro_use] extern crate enum_derive;
+             extern crate either;
              extern crate gif;
              extern crate gif_dispose;
              extern crate glob;
@@ -95,6 +99,7 @@
 
 
 mod caption;
+mod ext;
 mod model;
 mod resources;
 mod util;

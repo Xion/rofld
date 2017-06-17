@@ -6,6 +6,8 @@ mod output;
 mod task;
 
 
-pub use self::engine::Engine;
+pub use self::engine::{Builder as EngineBuilder,
+                       BuildError as EngineBuildError,
+                       Engine};
 pub use self::error::CaptionError;
 pub use self::output::CaptionOutput;

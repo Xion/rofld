@@ -1,5 +1,11 @@
 //! Module which defines the captioning engine.
 
+mod builder;
+mod config;
+
+pub use self::builder::Error as BuildError;
+
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -9,10 +15,8 @@ use util::cache::ThreadSafeCache;
 use super::error::CaptionError;
 use super::output::CaptionOutput;
 use super::task::CaptionTask;
-
-
-const DEFAULT_TEMPLATE_CAPACITY: usize = 128;
-const DEFAULT_FONT_CAPACITY: usize = 16;
+pub use self::builder::Builder;
+use self::config::Config;
 
 
 /// Image captioning engine.
@@ -34,6 +38,7 @@ pub struct Engine<Tl = TemplateLoader, Fl = FontLoader>
 pub(super) struct Inner<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
+    pub config: Config,
     pub template_loader: CachingLoader<Tl>,
     pub font_loader: CachingLoader<Fl>,
 }
@@ -50,15 +55,19 @@ impl Engine<TemplateLoader, FontLoader> {
     /// Create an Engine which loads templates & fonts from given directory paths.
     ///
     /// When loaded, both resources will be cached in memory (LRU cache).
+    ///
+    /// For other ways of creating `Engine`, see the `EngineBuilder`.
     #[inline]
     pub fn new<Dt, Df>(template_directory: Dt, font_directory: Df) -> Self
         where Dt: AsRef<Path>, Df: AsRef<Path>
     {
-        Engine::with_loaders(
-            TemplateLoader::new(template_directory),
-            FontLoader::new(font_directory),
-        )
+        Builder::new()
+            .template_directory(template_directory)
+            .font_directory(font_directory)
+            .build().unwrap()
     }
+
+    // TODO: consider deprecating all the other constructors now that we have a builder
 }
 impl<Tl, Fl> Engine<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
@@ -68,10 +77,10 @@ impl<Tl, Fl> Engine<Tl, Fl>
     /// When loaded, both resources will be cached in memory (LRU cache).
     #[inline]
     pub fn with_loaders(template_loader: Tl, font_loader: Fl) -> Self {
-        Engine::from(Inner{
-            template_loader: CachingLoader::new(template_loader, DEFAULT_TEMPLATE_CAPACITY),
-            font_loader: CachingLoader::new(font_loader, DEFAULT_FONT_CAPACITY),
-        })
+        Builder::new()
+            .template_loader(template_loader)
+            .font_loader(font_loader)
+            .build().unwrap()
     }
 
     /// Create an Engine that uses given template & font loaders directly.
@@ -79,20 +88,12 @@ impl<Tl, Fl> Engine<Tl, Fl>
     /// Any caching scheme, if necessary, should be implemented by loaders themselves.
     #[inline]
     pub fn with_raw_loaders(template_loader: Tl, font_loader: Fl) -> Self {
-        // Use the phony version of CachingLoader which doesn't actually cache anything,
-        // but provides the same interface yielding Arc<T>.
-        Engine::from(Inner{
-            template_loader: CachingLoader::phony(template_loader),
-            font_loader: CachingLoader::phony(font_loader),
-        })
-    }
-
-    // TODO: add a Builder that also allows to:
-    // * set the capacity of standard template/font caches
-    // * adjust GIF & JPEG quality parameters
-    // * adjust memory limit for GIF decoding
-    // (this will probably warrant a separate Config struct)
+        Builder::new()
+            .raw_template_loader(template_loader)
+            .raw_font_loader(font_loader)
+            .build().unwrap()    }
 }
+
 
 // Image macro captioning.
 impl<Tl, Fl> Engine<Tl, Fl>

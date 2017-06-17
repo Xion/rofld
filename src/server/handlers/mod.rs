@@ -89,8 +89,8 @@ pub fn caption_macro(method: Method, url: Uri, body: Vec<u8>) -> BoxFuture<Respo
 fn status_code_for(e: &RenderError) -> StatusCode {
     match *e {
         RenderError::Caption(ref e) => match *e {
-            CaptionError::Template(..) => StatusCode::NotFound,
-            CaptionError::Font(..) => StatusCode::NotFound,
+            CaptionError::Template{..} => StatusCode::NotFound,
+            CaptionError::Font{..} => StatusCode::NotFound,
             CaptionError::Encode(..) => StatusCode::InternalServerError,
         },
         RenderError::Timeout => StatusCode::InternalServerError,

@@ -57,7 +57,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
         debug!("Rendering {:?}", self.image_macro);
 
         let template = self.engine.template_loader.load(&self.template)
-            .map_err(|e| CaptionError::Template(self.template.clone(), e))?;
+            .map_err(|e| CaptionError::template(self.template.clone(), e))?;
         if template.is_animated() {
             debug!("Image macro uses an animated template `{}` with {} frames",
                 self.template, template.image_count());
@@ -137,7 +137,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
 
         trace!("Loading font `{}`...", caption.font);
         let font = self.engine.font_loader.load(&caption.font)
-            .map_err(|e| CaptionError::Font(caption.font.clone(), e))?;
+            .map_err(|e| CaptionError::font(caption.font.clone(), e))?;
 
         trace!("Checking if font `{}` has all glyphs for caption: {}",
             caption.font, caption.text);
@@ -211,7 +211,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
                     .map_err(CaptionError::Encode)?;
             }
             ImageFormat::JPEG => {
-                let quality = 85;  // TODO: make this an Engine configuration parameter
+                let quality = self.engine.config.jpeg_quality;
                 trace!("Writing JPEG with quality {}", quality);
                 assert_eq!(1, images.len());
                 let img = &images[0];

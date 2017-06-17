@@ -1,7 +1,5 @@
 //! Module defining the model types.
 
-#![allow(missing_docs)]  // Because of IterVariants used by HAlign & VAlign.
-
 use std::fmt;
 
 use image::{Rgb, Rgba};
@@ -50,35 +48,44 @@ pub struct Caption {
     pub outline: Option<Color>,
 }
 
-macro_attr! {
-    /// Horizontal alignment of text within a rectangle.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-             Deserialize, IterVariants!(HAligns))]
-    #[serde(rename_all = "lowercase")]
-    pub enum HAlign {
-        /// Left alignment.
-        Left,
-        /// Horizontal centering.
-        Center,
-        /// Right alignment.
-        Right,
-    }
-}
+#[allow(missing_docs)]
+mod enums {
+    //! This weird inner module is only here because we need to locally disable
+    //! enforcing of missing_docs lint.
+    //! Why? Because the IterVariants derivation creates undocumented methods
+    //! and we can't fix that otherwise -_-
 
-macro_attr! {
-    /// Vertical alignment of text within a rectangle.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-             Deserialize, IterVariants!(VAligns))]
-    #[serde(rename_all = "lowercase")]
-    pub enum VAlign {
-        /// Top alignment.
-        Top,
-        /// Vertical centering.
-        Middle,
-        /// Bottom alignment.
-        Bottom,
+    macro_attr! {
+        /// Horizontal alignment of text within a rectangle.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+                 Deserialize, IterVariants!(HAligns))]
+        #[serde(rename_all = "lowercase")]
+        pub enum HAlign {
+            /// Left alignment.
+            Left,
+            /// Horizontal centering.
+            Center,
+            /// Right alignment.
+            Right,
+        }
+    }
+
+    macro_attr! {
+        /// Vertical alignment of text within a rectangle.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+                 Deserialize, IterVariants!(VAligns))]
+        #[serde(rename_all = "lowercase")]
+        pub enum VAlign {
+            /// Top alignment.
+            Top,
+            /// Vertical centering.
+            Middle,
+            /// Bottom alignment.
+            Bottom,
+        }
     }
 }
+pub use self::enums::*;
 
 /// RGB color of the text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
