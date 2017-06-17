@@ -32,6 +32,7 @@
              extern crate slog_envlogger;
              extern crate slog_stdlog;
              extern crate slog_stream;
+             extern crate thread_id;
              extern crate tokio_core;
              extern crate tokio_signal;
              extern crate tokio_timer;
@@ -103,6 +104,9 @@ fn main() {
     if log_enabled!(Debug) {
         if let Some(pid) = get_process_id() {
             debug!("PID = {}", pid);
+        }
+        if log_enabled!(Trace) {
+            trace!("Main thread ID = {:#x}", thread_id::get());
         }
     }
     if cfg!(debug_assertions) {

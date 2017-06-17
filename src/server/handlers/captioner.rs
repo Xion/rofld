@@ -9,9 +9,11 @@ use antidote::Mutex;
 use atomic::Atomic;
 use futures::{BoxFuture, future, Future};
 use futures_cpupool::{self, CpuPool};
+use log::LogLevel::*;
 use rand::{self, thread_rng};
 use rofl::{self, CaptionOutput, CaptionError, Font, ImageMacro, Template};
 use rofl::cache::ThreadSafeCache;
+use thread_id;
 use tokio_timer::{TimeoutError, Timer, TimerError};
 
 use args::Resource;
@@ -50,8 +52,14 @@ impl Captioner {
     fn pool_builder() -> futures_cpupool::Builder {
         let mut builder = futures_cpupool::Builder::new();
         builder.name_prefix("caption-");
-        builder.after_start(|| trace!("Worker thread created in Captioner::pool"));
-        builder.before_stop(|| trace!("Stopping worker thread in Captioner::pool"));
+        if log_enabled!(Trace) {
+            builder.after_start(|| trace!(
+                "Worker thread (ID={:#x}) created in Captioner::pool",
+                thread_id::get()));
+            builder.before_stop(|| trace!(
+                "Stopping worker thread (ID={:#x}) in Captioner::pool",
+                thread_id::get()));
+        }
         builder
     }
 }
