@@ -11,15 +11,17 @@ if [ -z "$ARG" ] || case $ARG in -*) ;; *) false;; esac; then
 fi
 
 # Recognize some common commands and apply them to both crates
-if [ "$ARG" = 'build' ] || [ "$ARG" = 'test' ] || [ "$ARG" = 'clean' ]; then
-    for path in ./src/* ; do
-        name="$(basename "$path")"
-        if [ -d "./src/$name" ]; then
-            "$BIN" "$name" "$ARG" "$@" || exit 1
-        fi
-    done
-    exit $?
-fi
+case "$ARG" in
+    build|check|clean|test)
+        for path in ./src/* ; do
+            name="$(basename "$path")"
+            if [ -d "./src/$name" ]; then
+                "$BIN" "$name" "$ARG" "$@" || exit 1
+            fi
+        done
+        exit $?
+        ;;
+esac
 
 # Otherwise treat the first argument as crate moniker
 CRATE="$ARG"
