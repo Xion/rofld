@@ -33,13 +33,22 @@ fi
 CMD="$1" ; shift
 
 # Undertake default actions for some crates if no command is given
+# TOOO: if the command starts with -, do the same, but put it back into $@
 if [ -z "$CMD" ]; then
     case "$CRATE" in
         server) CMD='run' ;;
     esac
 fi
 
-(
+# For running binaries, use --manifest-path because we want to be in the root
+# directory for the correct $CWD.
+if [ "$CMD" = 'run' ]; then
+    MANIFEST="./src/$CRATE/Cargo.toml"
     set -x  # echo on
-    cd "./src/$CRATE" && cargo "$CMD" "$@"
-)
+    cargo "$CMD" --manifest-path="$MANIFEST" "$@"
+else
+    (
+        set -x  # echo on
+        cd "./src/$CRATE" && cargo "$CMD" "$@"
+    )
+fi
