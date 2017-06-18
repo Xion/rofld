@@ -212,7 +212,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
             }
             ImageFormat::JPEG => {
                 let quality = self.engine.config.jpeg_quality;
-                trace!("Writing JPEG with quality {}", quality);
+                trace!("Writing JPEG with quality {}%", quality);
                 assert_eq!(1, images.len());
                 let img = &images[0];
 
@@ -223,19 +223,21 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
                     .map_err(CaptionError::Encode)?;
             }
             ImageFormat::GIF => {
+                let quality = self.engine.config.gif_quality;
                 if let &Template::Animation(ref gif_anim) = template {
-                    trace!("Writing animated GIF with {} frame(s)", gif_anim.frames_count());
-                    animated_gif::encode_modified(gif_anim, images, &mut result)
+                    trace!("Writing animated GIF of {} frame(s) with quality {}%",
+                        gif_anim.frames_count(), quality);
+                    animated_gif::encode_modified(gif_anim, images, quality, &mut result)
                         .map_err(CaptionError::Encode)?;
                 } else {
-                    trace!("Writing regular (still) GIF");
+                    trace!("Writing regular (still) GIF with quality {}%", quality);
                     assert_eq!(1, images.len());
                     let img = &images[0];
 
                     // Encode the image as a single GIF frame.
                     let (width, height) = img.dimensions();
                     let mut frame = image::gif::Frame::default();
-                    let (buffer, palette, transparent) = animated_gif::quantize_image(img);
+                    let (buffer, palette, transparent) = animated_gif::quantize_image(img, quality);
                     frame.width = width as u16;
                     frame.height = height as u16;
                     frame.buffer = buffer.into();

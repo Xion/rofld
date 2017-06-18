@@ -8,6 +8,8 @@
 pub(in caption) struct Config {
     /// Quality of the generated JPEG images (in %).
     pub jpeg_quality: u8,
+    /// Quality of the generated GIF animations (in %).
+    pub gif_quality: u8,
 }
 
 impl Default for Config {
@@ -15,6 +17,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             jpeg_quality: 85,
+            gif_quality: 60,
         }
     }
 }

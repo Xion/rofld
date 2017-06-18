@@ -2,6 +2,7 @@
 //!
 //! This is done by wrapping over the API exposed by several image-related crates.
 
+use std::cmp::max;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
@@ -272,13 +273,10 @@ const RGBA_SIZE_BYTES: usize = 4;
 
 // Encoding animated GIFs
 
-/// Quality parameter for the NeuQuant color quantizer.
-/// Range 1..=30. Lower values mean better quality.
-const COLOR_SAMPLE_FACTION: i32 = 12;
-// TODO: make this an Engine configuration parameter
-
-/// Encode an animated GIF.
-pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
+/// Encode an animated GIF and write it to given writer.
+///
+/// The `quality` parameter is a percentage from 1 to 100.
+pub fn encode<W: Write>(anim: &GifAnimation, quality: u8, output: W) -> io::Result<()> {
     let output = BgColorFixer::new(anim.bg_color.map(|i| i as u8), output);
     let mut encoder =
         gif::Encoder::new(output, anim.width, anim.height, &*anim.palette)?;
@@ -288,7 +286,7 @@ pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
         trace!("Writing frame #{}", i + 1);
         let mut gif_frame = frame.metadata.clone();
 
-        let (buffer, palette, transparent) = quantize_image(&frame.image);
+        let (buffer, palette, transparent) = quantize_image(&frame.image, quality);
         gif_frame.buffer = buffer.into();
         gif_frame.palette = Some(palette);
         gif_frame.transparent = transparent;
@@ -304,6 +302,7 @@ pub fn encode<W: Write>(anim: &GifAnimation, output: W) -> io::Result<()> {
 /// (frame delays, transitions, etc.).
 pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,
                                  images: Vec<DynamicImage>,
+                                 quality: u8,
                                  output: W) -> io::Result<()> {
     assert_eq!(orig_anim.frames_count(), images.len());
 
@@ -327,7 +326,7 @@ pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,
         bg_color: orig_anim.bg_color,
     };
 
-    encode(&new_anim, output)
+    encode(&new_anim, quality, output)
 }
 
 /// Low-level function that performs color quantization of an image.
@@ -336,7 +335,7 @@ pub fn encode_modified<W: Write>(orig_anim: &GifAnimation,
 /// * `buffer` is the image where pixels are palette indexes
 /// * `palette` is a contiguous buffer of RGB colors in the palette used
 /// * `transparent` is optional palette index of the transparent color
-pub fn quantize_image(image: &DynamicImage) -> (Vec<u8>, Vec<u8>, Option<u8>) {
+pub fn quantize_image(image: &DynamicImage, quality: u8) -> (Vec<u8>, Vec<u8>, Option<u8>) {
     let mut pixels = image.raw_pixels().to_owned();
 
     //
@@ -355,7 +354,7 @@ pub fn quantize_image(image: &DynamicImage) -> (Vec<u8>, Vec<u8>, Option<u8>) {
         }
     }
 
-    let quantizer = NeuQuant::new(COLOR_SAMPLE_FACTION, 256, &pixels[..]);
+    let quantizer = NeuQuant::new(color_faction(quality), 256, &pixels[..]);
 
     let buffer = pixels.chunks(RGBA_SIZE_BYTES)
         .map(|pix| quantizer.index_of(pix) as u8)
@@ -365,6 +364,17 @@ pub fn quantize_image(image: &DynamicImage) -> (Vec<u8>, Vec<u8>, Option<u8>) {
 
     (buffer, palette, transparent)
 }
+
+/// Convert the user-facing quality percentage value (1-100)
+/// to the `color_quant`'s color sample faction value.
+fn color_faction(quality: u8) -> i32 {
+    assert!(0 < quality && quality <= 100,
+        "GIF quality must be between 1 and 100 inclusive, got {}", quality);
+
+    // Rescale & invert (lower values of color faction == better quality).
+    max(1, MAX_COLOR_SAMPLE_FACTION - (quality as i32) * MAX_COLOR_SAMPLE_FACTION / 100)
+}
+const MAX_COLOR_SAMPLE_FACTION: i32 = 30;
 
 /// A really silly hack to work around the fact that `gif` crate doesn't allow to pass
 /// the GIF's background color when encoding the image.
@@ -416,3 +426,35 @@ impl<W: Write> Write for BgColorFixer<W> {
 }
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 const BGCOLOR_OFFSET: usize = 11;
+
+
+#[cfg(test)]
+mod tests {
+    use spectral::prelude::*;
+    use super::{color_faction, MAX_COLOR_SAMPLE_FACTION};
+
+    #[test]
+    fn color_faction_edges() {
+        assert_eq!(MAX_COLOR_SAMPLE_FACTION, color_faction(1));  // The scale is inverted.
+        assert_eq!(MAX_COLOR_SAMPLE_FACTION, color_faction(2));  // The scale isn't too granular.
+        assert_eq!(1, color_faction(100));
+        assert_eq!(1, color_faction(99));  // DItto on the other side.
+    }
+
+    #[test]
+    fn color_faction_values() {
+        // color_faction() results must be in range for all valid input values.
+        let mut cfs = vec![];
+        for q in 1..101 {
+            let cf = color_faction(q);
+            assert!(1 <= cf && cf <= MAX_COLOR_SAMPLE_FACTION,
+                "Color faction `{}` out of range for quality `{}%`", cf, q);
+            cfs.push(cf);
+        }
+
+        // They must be monotonically decreasing, too.
+        let mut sorted_cfs = cfs.clone();
+        sorted_cfs.sort_by(|a, b| b.cmp(a));
+        assert_that!(cfs.iter()).equals_iterator(&sorted_cfs.iter());
+    }
+}
