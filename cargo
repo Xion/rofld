@@ -25,9 +25,7 @@ esac
 
 # Otherwise treat the first argument as crate moniker
 CRATE="$ARG"
-MANIFEST="./src/$CRATE/Cargo.toml"
-
-if [ ! -f "$MANIFEST" ]; then
+if [ ! -f "./src/$CRATE/Cargo.toml" ]; then
     echo >&2 "Usage: $BIN CRATE [CARGO_ARGS]"
     exit 2
 fi
@@ -41,5 +39,7 @@ if [ -z "$CMD" ]; then
     esac
 fi
 
-set -x  # echo on
-cargo "$CMD" --manifest-path="$MANIFEST" "$@"
+(
+    set -x  # echo on
+    cd "./src/$CRATE" && cargo "$CMD" "$@"
+)
