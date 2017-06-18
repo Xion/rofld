@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use clap::{self, AppSettings, Arg, ArgMatches};
 use conv::TryFrom;
-use conv::errors::Unrepresentable;
+use conv::errors::{RangeError, Unrepresentable};
 use enum_set::{CLike, EnumSet};
 
 use super::{NAME, VERSION};
@@ -53,6 +53,10 @@ pub struct Options {
     /// Number of threads to use for image captioning.
     /// If omitted, the actual count will be based on the number of CPUs.
     pub render_threads: Option<usize>,
+    /// Quality of GIF animations rendered by the server.
+    pub gif_quality: Option<u8>,
+    /// Quality of JPEG images produced.
+    pub jpeg_quality: Option<u8>,
 
     /// Size of the template cache.
     pub template_cache_size: Option<usize>,
@@ -105,6 +109,14 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 
         let render_threads = match matches.value_of(OPT_RENDER_THREADS) {
             Some(rt) => Some(try!(rt.parse::<usize>().map_err(ArgsError::RenderThreads))),
+            None => None,
+        };
+        let gif_quality = match matches.value_of(OPT_GIF_QUALITY) {
+            Some(q) => Some(try!(parse_quality(q).map_err(ArgsError::GifQuality))),
+            None => None,
+        };
+        let jpeg_quality = match matches.value_of(OPT_JPEG_QUALITY) {
+            Some(q) => Some(try!(parse_quality(q).map_err(ArgsError::JpegQuality))),
             None => None,
         };
 
@@ -160,12 +172,22 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 
         Ok(Options{
             verbosity, address,
-            render_threads,
+            render_threads, gif_quality, jpeg_quality,
             template_cache_size, font_cache_size, preload,
             request_timeout, shutdown_timeout,
         })
     }
 }
+
+/// Parse a string into an image quality percentage.
+fn parse_quality(s: &str) -> Result<u8, QualityError> {
+    match s.parse()? {
+        q if q <= 0 => Err(RangeError::NegOverflow(q).into()),
+        q if q > 100 => Err(RangeError::PosOverflow(q).into()),
+        q => Ok(q),
+    }
+}
+
 
 /// Error that can occur while parsing of command line arguments.
 #[derive(Debug, Error)]
@@ -177,6 +199,12 @@ pub enum ArgsError {
     /// Error while parsing --render-threads flag.
     #[error(no_from)]
     RenderThreads(ParseIntError),
+    /// Error while parsing --gif-quality flag.
+    #[error(no_from)]
+    GifQuality(QualityError),
+    /// Error while parsing --jpeg-quality flag.
+    #[error(no_from)]
+    JpegQuality(QualityError),
     /// Error while parsing --template-cache flag.
     #[error(no_from)]
     TemplateCache(ParseIntError),
@@ -220,6 +248,15 @@ impl fmt::Display for PreloadError {
                 Unrepresentable(ref s)) => format!("unknown resource type `{}`", s),
         })
     }
+}
+
+/// Error that can occur while parsing an --X-quality flag.
+#[derive(Debug, Error)]
+pub enum QualityError {
+    /// Error while parsing the value as number.
+    Parse(ParseIntError),
+    /// Error for when the quality value is out of range.
+    Range(RangeError<u8>),
 }
 
 
@@ -267,6 +304,8 @@ lazy_static! {
 
 const ARG_ADDR: &'static str = "address";
 const OPT_RENDER_THREADS: &'static str = "render-threads";
+const OPT_GIF_QUALITY: &'static str = "gif-quality";
+const OPT_JPEG_QUALITY: &'static str = "jpeg-quality";
 const OPT_TEMPLATE_CACHE_SIZE: &'static str = "template-cache";
 const OPT_FONT_CACHE_SIZE: &'static str = "font-cache";
 const OPT_PRELOAD: &'static str = "preload";
@@ -313,6 +352,7 @@ fn create_parser<'p>() -> Parser<'p> {
                 "Alternatively, a colon and port alone is also allowed, ",
                 "in which case the server will listen on all network interfaces.")))
 
+        // Rendering options.
         .arg(Arg::with_name(OPT_RENDER_THREADS)
             .long("render-threads")
             .value_name("N")
@@ -321,6 +361,19 @@ fn create_parser<'p>() -> Parser<'p> {
             .long_help(concat!(
                 "Number of threads used for image captioning.\n\n",
                 "If omitted, one thread per each CPU core will be used.")))
+        .arg(Arg::with_name(OPT_GIF_QUALITY)
+            .long("gif-quality")
+            .value_name("PERCENT")
+            .required(false)
+            .help("Quality of GIF animations produced")
+            .long_help(concat!(
+                "Quality percentage of GIF animations rendered by the server.\n\n",
+                "Note that anything higher than 70 is likely to be *very* slow.")))
+        .arg(Arg::with_name(OPT_JPEG_QUALITY)
+            .long("jpeg-quality")
+            .value_name("PERCENT")
+            .required(false)
+            .help("Quality of JPEG images rendered"))
 
         // Cache options.
         .arg(Arg::with_name(OPT_TEMPLATE_CACHE_SIZE)
@@ -478,6 +531,34 @@ mod tests {
         assert_that!(parse_from_argv(vec![*NAME, "--render-threads", "-42"])).is_err();
         // This is fine.
         assert_that!(parse_from_argv(vec![*NAME, "--render-threads", "16"])).is_ok();
+    }
+
+    #[test]
+    fn gif_quality_arg() {
+        // Needs a value.
+        assert_that!(parse_from_argv(vec![*NAME, "--gif-quality"])).is_err();
+        // Value must be a number.
+        assert_that!(parse_from_argv(vec![*NAME, "--gif-quality", "foo"])).is_err();
+        // A positive number.
+        assert_that!(parse_from_argv(vec![*NAME, "--gif-quality", "-42"])).is_err();
+        // Within range.
+        assert_that!(parse_from_argv(vec![*NAME, "--gif-quality", "169"])).is_err();
+        // This is fine.
+        assert_that!(parse_from_argv(vec![*NAME, "--gif-quality", "65"])).is_ok();
+    }
+
+    #[test]
+    fn jpeg_quality_arg() {
+        // Needs a value.
+        assert_that!(parse_from_argv(vec![*NAME, "--jpeg-quality"])).is_err();
+        // Value must be a number.
+        assert_that!(parse_from_argv(vec![*NAME, "--jpeg-quality", "foo"])).is_err();
+        // A positive number.
+        assert_that!(parse_from_argv(vec![*NAME, "--jpeg-quality", "-42"])).is_err();
+        // Within range.
+        assert_that!(parse_from_argv(vec![*NAME, "--jpeg-quality", "169"])).is_err();
+        // This is fine.
+        assert_that!(parse_from_argv(vec![*NAME, "--jpeg-quality", "65"])).is_ok();
     }
 
     #[test]

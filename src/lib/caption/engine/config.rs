@@ -5,7 +5,7 @@
 ///
 /// This is shared with `CaptionTask`s.
 #[derive(Clone, Copy, Debug)]
-pub(in caption) struct Config {
+pub struct Config {
     /// Quality of the generated JPEG images (in %).
     pub jpeg_quality: u8,
     /// Quality of the generated GIF animations (in %).

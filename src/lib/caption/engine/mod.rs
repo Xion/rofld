@@ -4,10 +4,13 @@ mod builder;
 mod config;
 
 pub use self::builder::Error as BuildError;
+pub use self::config::Config;
 
 
 use std::path::Path;
 use std::sync::Arc;
+
+use antidote::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use model::ImageMacro;
 use resources::{CachingLoader, Font, FontLoader, Loader, Template, TemplateLoader};
@@ -16,7 +19,6 @@ use super::error::CaptionError;
 use super::output::CaptionOutput;
 use super::task::CaptionTask;
 pub use self::builder::Builder;
-use self::config::Config;
 
 
 /// Image captioning engine.
@@ -38,10 +40,23 @@ pub struct Engine<Tl = TemplateLoader, Fl = FontLoader>
 pub(super) struct Inner<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
-    pub config: Config,
+    pub(super) config: RwLock<Config>,
     pub template_loader: CachingLoader<Tl>,
     pub font_loader: CachingLoader<Fl>,
 }
+
+impl<Tl, Fl> Inner<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
+    #[inline]
+    pub fn new(config: Config,
+               template_loader: CachingLoader<Tl>,
+               font_loader: CachingLoader<Fl>) -> Self {
+        let config = RwLock::new(config);
+        Inner{config, template_loader, font_loader}
+    }
+}
+
 impl<Tl, Fl> From<Inner<Tl, Fl>> for Engine<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
@@ -148,6 +163,25 @@ impl<Tl, Fl> Engine<Tl, Fl>
         } else {
             Some(self.inner.font_loader.cache())
         }
+    }
+}
+
+// Configuration.
+impl<Tl, Fl> Engine<Tl, Fl>
+    where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
+{
+    /// Read the `Engine`'s configuration.
+    #[inline]
+    pub fn config(&self) -> RwLockReadGuard<Config> {
+        self.inner.config.read()
+    }
+
+    /// Modify the `Engine`'s configuration.
+    ///
+    /// Changes will affect both pending and future captioning tasks.
+    #[inline]
+    pub fn config_mut(&self) -> RwLockWriteGuard<Config> {
+        self.inner.config.write()
     }
 }
 

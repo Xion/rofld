@@ -64,7 +64,7 @@ impl fmt::Display for FontError {
 /// Loader for fonts stored in a directory.
 ///
 /// Font names are translated directly into file names, loaded, and cached.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FontLoader {
     inner: BytesLoader<'static>,
 }

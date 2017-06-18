@@ -211,7 +211,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
                     .map_err(CaptionError::Encode)?;
             }
             ImageFormat::JPEG => {
-                let quality = self.engine.config.jpeg_quality;
+                let quality = self.engine.config.read().jpeg_quality;
                 trace!("Writing JPEG with quality {}%", quality);
                 assert_eq!(1, images.len());
                 let img = &images[0];
@@ -223,7 +223,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
                     .map_err(CaptionError::Encode)?;
             }
             ImageFormat::GIF => {
-                let quality = self.engine.config.gif_quality;
+                let quality = self.engine.config.read().gif_quality;
                 if let &Template::Animation(ref gif_anim) = template {
                     trace!("Writing animated GIF of {} frame(s) with quality {}%",
                         gif_anim.frames_count(), quality);

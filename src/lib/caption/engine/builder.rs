@@ -19,7 +19,7 @@ const DEFAULT_FONT_CAPACITY: usize = 16;
 /// Builder for `Engine`.
 #[derive(Debug)]
 #[must_use = "unused builder which must be used"]
-pub struct Builder<Tl, Fl>
+pub struct Builder<Tl = TemplateLoader, Fl = FontLoader>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
     errors: Vec<Error>,
@@ -273,7 +273,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
         let font_loader = self.font_loader_builder
             .ok_or_else(|| Error::no_loader_for("font"))?
             .build(|d| FontLoader::new(d))?;
-        Ok(Engine::from(super::Inner{config, template_loader, font_loader}))
+        Ok(Engine::from(super::Inner::new(config, template_loader, font_loader)))
     }
 }
 

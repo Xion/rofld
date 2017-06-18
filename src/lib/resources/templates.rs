@@ -132,7 +132,7 @@ pub enum TemplateError {
 /// Loader for templates stored in a directory.
 ///
 /// Template names are translated directly into file names, loaded, and cached.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TemplateLoader {
     inner: PathLoader<'static>,
 }

@@ -199,6 +199,16 @@ fn set_config<S, B>(opts: Options, server: &mut Server<S, B>)
         CAPTIONER.set_thread_count(rt_count);
         debug!("Number of threads for image captioning set to {}", rt_count);
     }
+    if let Some(quality) = opts.gif_quality {
+        if CAPTIONER.set_gif_quality(quality) {
+            debug!("GIF animation quality set to {}%", quality);
+        }
+    }
+    if let Some(quality) = opts.jpeg_quality {
+        if CAPTIONER.set_jpeg_quality(quality) {
+            debug!("JPEG image quality set to {}%", quality);
+        }
+    }
 
     if let Some(tcs) = opts.template_cache_size {
         CAPTIONER.template_cache().set_capacity(tcs);

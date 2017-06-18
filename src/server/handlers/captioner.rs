@@ -29,7 +29,7 @@ lazy_static! {
 /// Renders image macros into captioned images.
 pub struct Captioner {
     pool: Mutex<CpuPool>,
-    engine: Arc<rofl::Engine>,
+    engine: rofl::Engine,
     timer: Timer,
     // Configuration params.
     task_timeout: Atomic<Duration>,
@@ -39,7 +39,8 @@ impl Captioner {
     #[inline]
     fn new() -> Self {
         let pool = Mutex::new(Self::pool_builder().create());
-        let engine = Arc::new(rofl::Engine::new(&*TEMPLATE_DIR, &*FONT_DIR));
+        let engine = Self::engine_builder().build()
+            .expect("failed to create rofl::Engine in Captioner::new");
         let timer = Timer::default();
 
         let task_timeout = Atomic::new(Duration::from_secs(0));
@@ -47,7 +48,6 @@ impl Captioner {
         Captioner{pool, engine, timer, task_timeout}
     }
 
-    #[inline]
     #[doc(hidden)]
     fn pool_builder() -> futures_cpupool::Builder {
         let mut builder = futures_cpupool::Builder::new();
@@ -61,6 +61,13 @@ impl Captioner {
                 thread_id::get()));
         }
         builder
+    }
+
+    #[doc(hidden)]
+    fn engine_builder() -> rofl::EngineBuilder {
+        rofl::EngineBuilder::new()
+            .template_directory(&*TEMPLATE_DIR)
+            .font_directory(&*FONT_DIR)
     }
 }
 
@@ -129,6 +136,28 @@ impl Captioner {
                 }
             }
         }
+    }
+
+    #[inline]
+    pub fn set_jpeg_quality(&self, quality: u8) -> bool {
+        trace!("Setting generated JPEG quality to {}%", quality);
+        if !(0 < quality && quality <= 100) {
+            warn!("JPEG quality out of range: {}%", quality);
+            return false;
+        }
+        self.engine.config_mut().jpeg_quality = quality;
+        true
+    }
+
+    #[inline]
+    pub fn set_gif_quality(&self, quality: u8) -> bool {
+        trace!("Setting quality of generated GIF animations to {}%", quality);
+        if !(0 < quality && quality <= 100) {
+            warn!("GIF animation quality out of range: {}%", quality);
+            return false;
+        }
+        self.engine.config_mut().gif_quality = quality;
+        true
     }
 }
 

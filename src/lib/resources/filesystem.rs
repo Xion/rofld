@@ -19,6 +19,7 @@ use super::Loader;
 ///
 /// This isn't particularly useful on its own, but can be wrapped around
 /// to make more interesting loaders.
+#[derive(Clone)]
 pub struct PathLoader<'pl> {
     directory: PathBuf,
     predicate: Arc<Fn(&Path) -> bool + Send + Sync + 'pl>,
@@ -116,7 +117,7 @@ impl<'pl> fmt::Debug for PathLoader<'pl> {
 ///
 /// The resources it doles out are just file handles (`std::fs::File`).
 /// Wrappers around this loaded can then implement their own decoding.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FileLoader<'pl> {
     inner: PathLoader<'pl>,
 }
@@ -174,7 +175,7 @@ impl<'pl> Loader for FileLoader<'pl> {
 /// Wrapper around `FileLoader` that loads the entire content of the files.
 ///
 /// The content is given out as simple vector of bytes, i.e. `Vec<u8>`.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BytesLoader<'fl> {
     inner: FileLoader<'fl>,
 }
