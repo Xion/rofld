@@ -6,7 +6,7 @@ description = "Lulz server"
 documentation = "https://github.com/Xion/rofld"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
-readme = "../../README.md"
+readme = "README.md"
 license = "GPLv2"
 publish = false
 

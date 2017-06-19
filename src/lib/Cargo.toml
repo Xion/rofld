@@ -8,8 +8,11 @@ categories = ["multimedia::images", "visualization"]
 documentation = "https://docs.rs/rofl"
 homepage = "https://github.com/Xion/rofld"
 repository = "https://github.com/Xion/rofld"
-# TODO: add library-specific README
+readme = "README.md"
 license = "BSD-3-Clause"
+
+[badges]
+travis-ci = { repository = "Xion/rofld" }
 
 [lib]
 name = "rofl"
