@@ -1,5 +1,8 @@
 //! Module with captioning engine configuration.
 
+use std::error;
+use std::fmt;
+
 
 /// Structure holding configuration for the `Engine`.
 ///
@@ -22,3 +25,26 @@ impl Default for Config {
     }
 }
 
+
+/// Error signifying an invalid value for one of the configuration options.
+#[derive(Clone, Debug)]
+pub enum Error {
+    /// Invalid value for the GIF animation quality percentage.
+    GifQuality(u8),
+    /// Invalid value for the JPEG image quality percentage.
+    JpegQuality(u8),
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str { "invalid Engine configuration value" }
+    fn cause(&self) -> Option<&error::Error> { None }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::GifQuality(q) => write!(fmt, "invalid GIF quality value: {}%", q),
+            Error::JpegQuality(q) => write!(fmt, "invalid JPEG quality value: {}%", q),
+        }
+    }
+}

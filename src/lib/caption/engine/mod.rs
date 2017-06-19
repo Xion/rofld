@@ -4,7 +4,7 @@ mod builder;
 mod config;
 
 pub use self::builder::Error as BuildError;
-pub use self::config::Config;
+pub use self::config::{Config, Error as ConfigError};
 
 
 use std::path::Path;

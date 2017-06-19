@@ -1,6 +1,7 @@
 //! Module implementing the builder for `Engine`.
 
-use std::fmt::Display;
+use std::error;
+use std::fmt;
 use std::mem;
 use std::path::{Path, PathBuf};
 
@@ -8,7 +9,7 @@ use either::*;
 
 use ext::rust::OptionMutExt;
 use resources::{CachingLoader, Font, FontLoader, Loader, Template, TemplateLoader};
-use super::config::Config;
+use super::config::{self, Config};
 use super::Engine;
 
 
@@ -149,7 +150,7 @@ impl<Fl> Builder<TemplateLoader, Fl>
             .set_default_with(|| LoaderBuilder::cached(DEFAULT_TEMPLATE_CAPACITY));
         let ok = self.template_loader_builder.as_mut().unwrap()
             .set_cached_loader_directory(directory);
-        if ok { self } else { self.err(Error::loader_setup_conflict("template")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Template)) }
     }
 }
 impl<Tl> Builder<Tl, FontLoader>
@@ -162,7 +163,7 @@ impl<Tl> Builder<Tl, FontLoader>
             .set_default_with(|| LoaderBuilder::cached(DEFAULT_FONT_CAPACITY));
         let ok = self.font_loader_builder.as_mut().unwrap()
             .set_cached_loader_directory(directory);
-        if ok { self } else { self.err(Error::loader_setup_conflict("font")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Font)) }
     }
 }
 impl<Tl, Fl> Builder<Tl, Fl>
@@ -178,7 +179,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
             .set_default_with(|| LoaderBuilder::cached(DEFAULT_TEMPLATE_CAPACITY));
         let ok = self.template_loader_builder.as_mut().unwrap()
             .set_cached_loader_object(loader);
-        if ok { self } else { self.err(Error::loader_setup_conflict("template")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Template)) }
     }
 
     /// Change the size of the template cache.
@@ -188,7 +189,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
             .set_default_with(|| LoaderBuilder::cached(DEFAULT_TEMPLATE_CAPACITY));
         let ok = self.template_loader_builder.as_mut().unwrap()
             .set_cached_size(size);
-        if ok { self } else { self.err(Error::loader_setup_conflict("template")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Template)) }
     }
 
     /// Set a custom loader for fonts.
@@ -201,7 +202,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
             .set_default_with(|| LoaderBuilder::cached(DEFAULT_FONT_CAPACITY));
         let ok = self.font_loader_builder.as_mut().unwrap()
             .set_cached_loader_object(loader);
-        if ok { self } else { self.err(Error::loader_setup_conflict("font")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Font)) }
     }
 
     /// Change the size of the font cache.
@@ -211,7 +212,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
             .set_default_with(|| LoaderBuilder::cached(DEFAULT_FONT_CAPACITY));
         let ok = self.font_loader_builder.as_mut().unwrap()
             .set_cached_size(size);
-        if ok { self } else { self.err(Error::loader_setup_conflict("font")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Font)) }
     }
 
     /// Set a custom "raw" loader for templates.
@@ -223,7 +224,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
         self.template_loader_builder.set_default_with(LoaderBuilder::raw);
         let ok = self.template_loader_builder.as_mut().unwrap()
             .set_raw_loader_object(loader);
-        if ok { self } else { self.err(Error::loader_setup_conflict("template")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Template)) }
     }
 
     /// Set a custom "raw" loader for fonts.
@@ -235,7 +236,7 @@ impl<Tl, Fl> Builder<Tl, Fl>
         self.font_loader_builder.set_default_with(LoaderBuilder::raw);
         let ok = self.font_loader_builder.as_mut().unwrap()
             .set_raw_loader_object(loader);
-        if ok { self } else { self.err(Error::loader_setup_conflict("font")) }
+        if ok { self } else { self.err(Error::loader_config(Resource::Font)) }
     }
 }
 impl<Tl, Fl> Builder<Tl, Fl>
@@ -266,12 +267,12 @@ impl<Tl, Fl> Builder<Tl, Fl>
     pub fn build(self) -> Result<Engine<Tl, Fl>, Error> {
         self.check_errors()?;
 
-        let config = self.build_config();
+        let config = self.build_config()?;
         let template_loader = self.template_loader_builder
-            .ok_or_else(|| Error::no_loader_for("template"))?
+            .ok_or_else(|| Error::no_loader_for(Resource::Template))?
             .build(|d| TemplateLoader::new(d))?;
         let font_loader = self.font_loader_builder
-            .ok_or_else(|| Error::no_loader_for("font"))?
+            .ok_or_else(|| Error::no_loader_for(Resource::Font))?
             .build(|d| FontLoader::new(d))?;
         Ok(Engine::from(super::Inner::new(config, template_loader, font_loader)))
     }
@@ -318,7 +319,7 @@ impl<L: Loader> LoaderBuilder<L> {
                 // Use the phony version of CachingLoader which doesn't actually cache anything,
                 // but provides the same interface yielding Arc<L::Item>.
                 Ok(CachingLoader::phony(inner
-                    .expect("raw loader in LoaderBuilder::build_custom")))
+                    .expect("raw loader in LoaderBuilder::build")))
             }
         }
     }
@@ -327,17 +328,27 @@ impl<Tl, Fl> Builder<Tl, Fl>
     where Tl: Loader<Item=Template>, Fl: Loader<Item=Font>
 {
     #[doc(hidden)]
-    fn build_config(&self) -> Config {
+    fn build_config(&self) -> Result<Config, config::Error> {
         let mut config = Config::default();
         if let Some(quality) = self.jpeg_quality {
-            // TODO: validate this, should be <=100
+            Self::validate_quality(quality, config::Error::GifQuality)?;
             config.jpeg_quality = quality;
         }
         if let Some(quality) = self.gif_quality {
-            // TODO: validate this, should be >0 && <=100
+            Self::validate_quality(quality, config::Error::JpegQuality)?;
             config.gif_quality = quality;
         }
-        config
+        Ok(config)
+    }
+
+    #[doc(hidden)]
+    fn validate_quality<F>(quality: u8, err_ctor: F) -> Result<(), config::Error>
+        where F: FnOnce(u8) -> config::Error
+    {
+        if !(0 < quality && quality <= 100) {
+            return Err(err_ctor(quality));
+        }
+        Ok(())
     }
 
     #[doc(hidden)]
@@ -356,35 +367,88 @@ impl<Tl, Fl> Builder<Tl, Fl>
 }
 
 
+/// A resource type that `Engine` uses to render image macros.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Resource { Template, Font }
+
+impl Resource {
+    /// Return the singular string noun of the resource name.
+    pub fn singular(&self) -> &'static str {
+        match *self {
+            Resource::Template => "template",
+            Resource::Font => "font",
+        }
+    }
+
+    /// Return the plural string noun of the resource name.
+    pub fn plural(&self) -> &'static str {
+        match *self {
+            Resource::Template => "templates",
+            Resource::Font => "fonts",
+        }
+    }
+}
+
+impl fmt::Display for Resource {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}", self.singular())
+    }
+}
+
 /// Error that resulted from misconfiguration of the `Engine` via its `Builder`.
-#[derive(Clone, Debug, Error)]
+#[derive(Clone, Debug)]
 pub enum Error {
-    // TODO: use an enum for Template/Font resource rather than a String messages
-    // (along with with custom Display impl)
-
     /// No loader set up.
-    #[error(msg_embedded, non_std, no_from)]
-    NoLoader(String),
-
+    NoLoader(Option<Resource>),
     /// Template or font loader configuration setup error.
-    #[error(msg_embedded, non_std, no_from)]
-    LoaderBuilderConflict(String),
+    LoaderConfig(Resource),
+    /// Error in the `Engine` configuration parameters.
+    EngineConfig(config::Error),
 }
 
 impl Error {
     #[inline]
     pub(super) fn no_loader() -> Self {
-        Error::NoLoader("missing loader configuration".into())
+        Error::NoLoader(None)
     }
-
     #[inline]
-    pub(super) fn no_loader_for<R: Display>(resource: R) -> Self {
-        Error::NoLoader(format!("no {} loader configured", resource))
+    pub(super) fn no_loader_for(resource: Resource) -> Self {
+        Error::NoLoader(Some(resource))
     }
-
     #[inline]
-    pub(super) fn loader_setup_conflict<R: Display>(resource: R) -> Self {
-        Error::LoaderBuilderConflict(format!(
-            "invalid combination of configuration parameters for setting up {} loader", resource))
+    pub(super) fn loader_config(resource: Resource) -> Self {
+        Error::LoaderConfig(resource)
+    }
+    #[inline]
+    pub(super) fn engine_config(inner: config::Error) -> Self {
+        Error::EngineConfig(inner)
+    }
+}
+impl From<config::Error> for Error {
+    fn from(inner: config::Error) -> Self {
+        Error::engine_config(inner)
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str { "Engine configuration error" }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            Error::EngineConfig(ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::NoLoader(None) => write!(fmt, "missing loader configuration"),
+            Error::NoLoader(Some(r)) => write!(fmt, "no {} loader configured", r),
+            Error::LoaderConfig(r) => write!(fmt,
+                "invalid combination of configuration parameters for setting up {} loader", r),
+            Error::EngineConfig(ref e) => write!(fmt, "engine configuration error: {}", e),
+        }
     }
 }
