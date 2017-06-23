@@ -65,6 +65,7 @@
              extern crate color_quant;
              extern crate conv;
              extern crate css_color_parser;
+#[macro_use] extern crate derive_builder;
 #[macro_use] extern crate derive_error;
 #[macro_use] extern crate enum_derive;
              extern crate either;

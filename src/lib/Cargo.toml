@@ -24,6 +24,7 @@ antidote = "1.0"
 color_quant = "1.0"
 conv = "0.3"
 css-color-parser = "0.1.2"
+derive_builder = { version = "0.4", features = ["private_fields"] }
 derive-error = "0.0.3"
 enum_derive = "0.1"
 either = "1.1"
