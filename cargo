@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Wrapper script to execute Cargo commands against particular crates
 
 BIN="$0"
@@ -30,11 +30,13 @@ if [ ! -f "./src/$CRATE/Cargo.toml" ]; then
     exit 2
 fi
 
-CMD="$1" ; shift
-
 # Undertake default actions for some crates if no command is given
-# TOOO: if the command starts with -, do the same, but put it back into $@
-if [ -z "$CMD" ]; then
+CMD="$1" ; shift
+if [ -z "$CMD" ] || case $CMD in -*) ;; *) false;; esac; then
+    # If what followed the crate name was a flag, put it back first.
+    if [ -n "$CMD" ]; then
+        set -- "$CMD" "$@"
+    fi
     case "$CRATE" in
         server) CMD='run' ;;
     esac

@@ -56,6 +56,7 @@ mod logging;
 mod service;
 
 
+use std::borrow::Cow;
 use std::error::Error;
 use std::env;
 use std::io::{self, Write};
@@ -116,7 +117,7 @@ fn main() {
     for (i, arg) in env::args().enumerate() {
         debug!("argv[{}] = {:?}", i, arg);
     }
-    trace!("Server config parsed from argv: {:#?}", opts);
+    trace!("Server config parsed from argv:\n{:#?}", opts);
 
     start_server(opts);
     debug!("Finishing main().");
@@ -130,9 +131,9 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
             // message provided by the clap library will be the usage string.
             writeln!(&mut io::stderr(), "{}", e.message),
         e => {
-            let mut msg = "Failed to parse arguments".to_owned();
+            let mut msg: Cow<str> = "Failed to parse arguments".into();
             if let Some(cause) = e.cause() {
-                msg += &format!(": {}", cause);
+                msg = Cow::Owned(msg.into_owned() + &format!(": {}", cause));
             }
             writeln!(&mut io::stderr(), "{}", msg)
         },
