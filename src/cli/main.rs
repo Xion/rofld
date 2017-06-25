@@ -2,15 +2,29 @@
 //! roflsh -- Lulz in the shell
 //!
 
+             extern crate ansi_term;
 #[macro_use] extern crate clap;
              extern crate conv;
 #[macro_use] extern crate derive_error;
              extern crate exitcode;
+             extern crate isatty;
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate maplit;
              extern crate rofl;
+             extern crate slog_envlogger;
+             extern crate slog_stdlog;
+             extern crate slog_stream;
+             extern crate time;
+
+// `slog` must precede `log` in declarations here, because we want to simultaneously:
+// * use the standard `log` macros (at least for a while)
+// * be able to initialize the slog logger using slog macros like o!()
+#[macro_use] extern crate slog;
+#[macro_use] extern crate log;
 
 
 mod args;
+mod logging;
 
 
 use std::io::{self, Write};
@@ -33,6 +47,8 @@ fn main() {
         print_args_error(e).unwrap();
         exit(exitcode::USAGE);
     });
+
+    logging::init(opts.verbosity).unwrap();
 
     // TODO: do stuff actually
     println!("Got options: {:#?}", opts)

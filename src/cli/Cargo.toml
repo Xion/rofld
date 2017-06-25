@@ -17,9 +17,18 @@ name = "roflsh"
 path = "main.rs"
 
 [dependencies]
+ansi_term = "0.9"
 clap = { version = "2.19", features = ["suggestions"] }
 conv = "0.3"
 derive-error = "0.0.3"
 exitcode = "1.0"
+isatty = "0.1.1"
 lazy_static = "*"
+log = "*"
+maplit = "0.1"
 rofl = { path = "../lib" }
+slog = "1.5.2"
+slog-envlogger = "0.5"
+slog-stdlog = "1.1"
+slog-stream = "1.2"
+time = "0.1"

@@ -44,6 +44,7 @@ before_install: |
 script:
   - ./cargo lib test --no-fail-fast
   - ./cargo server test --no-fail-fast
+  - ./cargo cli test --no-fail-fast
 
 
 #
@@ -54,7 +55,7 @@ branches:
   only:
     # Run CI on pushes and PRs to master
     - master
-    # TODO: run also on tags when/if we have some deployment coe
+    # TODO: run also on tags when/if we have some deployment code
     # (This regex matches semantic versions like v1.2.3-rc4+2016.02.22)
     # - /^\d+\.\d+\.\d+.*$/
 
