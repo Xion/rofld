@@ -27,7 +27,9 @@ mod args;
 mod logging;
 
 
+use std::env;
 use std::io::{self, Write};
+use std::fs;
 use std::process::exit;
 
 use args::ArgsError;
@@ -49,9 +51,35 @@ fn main() {
     });
 
     logging::init(opts.verbosity).unwrap();
+    if cfg!(debug_assertions) {
+        warn!("Debug mode! The program will likely be much slower.");
+    }
+    for (i, arg) in env::args().enumerate() {
+        debug!("argv[{}] = {:?}", i, arg);
+    }
+    trace!("Options parsed from argv:\n{:#?}", opts);
 
-    // TODO: do stuff actually
-    println!("Got options: {:#?}", opts)
+    match opts.output_path.as_ref() {
+        Some(path) => {
+            let file = fs::OpenOptions::new()
+                .create(true).write(true).append(false)
+                .open(path).unwrap_or_else(|e| {
+                    error!("Failed to open output file {} for writing: {}", path.display(), e);
+                    exit(exitcode::CANTCREAT);
+                });
+            render(opts.image_macro, file)
+        }
+        None => {
+            if isatty::stdout_isatty() {
+                warn!("Standard output is a terminal.");
+                // TODO: ask for confirmation since this can screw user's terminal
+            }
+            render(opts.image_macro, io::stdout())
+        }
+    }.unwrap_or_else(|e| {
+        error!("Error while rendering image macro: {}", e);
+        exit(exitcode::UNAVAILABLE);
+    });
 }
 
 /// Print an error that may occur while parsing arguments.
@@ -65,4 +93,18 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
             writeln!(&mut io::stderr(), "Failed to parse arguments: {}", e)
         },
     }
+}
+
+
+/// Render given `ImageMacro` and write it to the output.
+fn render<W: Write>(im: rofl::ImageMacro, mut output: W) -> io::Result<()> {
+    // TODO: allow to adjust the resource directories from command line
+    let engine = rofl::EngineBuilder::new()
+        .template_directory("data/templates")
+        .font_directory("data/fonts")
+        .build().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let captioned = engine.caption(im)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    output.write_all(captioned.bytes())
 }

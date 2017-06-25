@@ -144,7 +144,11 @@ fn create_parser<'p>() -> Parser<'p> {
         .arg(Arg::with_name(OPT_OUTPUT)
             .long("output").short("o")
             .required(false)
-            .help("File to write the rendered image to"))
+            .help("File to write the rendered image to")
+            .long_help(concat!(
+                "What file should the final image be written to.\n\n",
+                "By default, or when this flag is set to `-` (single dash), the image is written ",
+                "to standard output so it can be e.g. piped to the ImageMagick `display` program.")))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)
