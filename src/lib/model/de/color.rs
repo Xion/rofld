@@ -153,7 +153,7 @@ pub enum ColorParseError {
     #[error(msg = "invalid CSS color syntax")]
     Css(CssColorParseError),
     /// Error for when the color erroneously includes an alpha channel value.
-    #[error(no_from, non_std, msg =" color transparency not supported")]
+    #[error(no_from, non_std, msg = "color transparency not supported")]
     Alpha(f32),
 }
 

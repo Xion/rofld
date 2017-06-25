@@ -20,7 +20,7 @@ use enum_set::{CLike, EnumSet};
 use super::{NAME, VERSION};
 
 
-/// Parse command line arguments and return Options' object.
+/// Parse command line arguments and return `Options` object.
 #[inline]
 pub fn parse() -> Result<Options, ArgsError> {
     parse_from_argv(env::args_os())

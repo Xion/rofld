@@ -1,0 +1,25 @@
+[package]
+name = "roflsh"
+version = "0.0.1"
+authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
+description = "Lulz in the shell"
+documentation = "https://github.com/Xion/rofld"
+homepage = "https://github.com/Xion/rofld"
+repository = "https://github.com/Xion/rofld"
+readme = "README.md"
+license = "GPLv2"
+
+[badges]
+travis-ci = { repository = "Xion/rofld" }
+
+[[bin]]
+name = "roflsh"
+path = "main.rs"
+
+[dependencies]
+clap = { version = "2.19", features = ["suggestions"] }
+conv = "0.3"
+derive-error = "0.0.3"
+exitcode = "1.0"
+lazy_static = "*"
+rofl = { path = "../lib" }

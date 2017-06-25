@@ -38,6 +38,7 @@ if [ -z "$CMD" ] || case $CMD in -*) ;; *) false;; esac; then
         set -- "$CMD" "$@"
     fi
     case "$CRATE" in
+        cli)    CMD='run' ;;
         server) CMD='run' ;;
     esac
 fi

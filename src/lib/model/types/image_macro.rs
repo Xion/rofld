@@ -13,7 +13,7 @@ use super::caption::Caption;
 /// *Note*: If `width` or `height` is provided, the result will be resized
 /// whilst preserving the original aspect ratio of the template.
 /// This means the final size of the image may be smaller than requested.
-#[derive(Default)]
+#[derive(Clone, Default, Eq)]
 pub struct ImageMacro {
     /// Name of the template used by this image macro.
     pub template: String,
@@ -78,6 +78,14 @@ pub struct Builder {
     width: Option<u32>,
     height: Option<u32>,
     captions: Vec<Caption>,
+}
+
+impl Builder {
+    /// Create a new `Builder` for an `ImageMacro`.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl Builder {

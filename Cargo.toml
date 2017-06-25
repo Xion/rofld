@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "src/cli",
     "src/lib",
     "src/server",
 ]

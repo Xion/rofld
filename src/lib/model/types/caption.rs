@@ -13,8 +13,8 @@ use super::color::Color;
 ///
 /// Use the provided `Caption::text_at` method to create it
 /// with most of the fields set to default values.
-#[derive(Builder, Clone, PartialEq)]
-#[builder(derive(Debug, PartialEq),
+#[derive(Builder, Clone, Eq, PartialEq)]
+#[builder(derive(Debug, Eq, PartialEq),
           pattern = "owned", build_fn(skip))]
 pub struct Caption {
     /// Text to render.
@@ -68,6 +68,14 @@ impl fmt::Debug for Caption {
     }
 }
 
+
+impl CaptionBuilder {
+    /// Create a new `Builder` for a `Caption`.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl CaptionBuilder {
     /// Build the resulting `Caption`.
