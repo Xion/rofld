@@ -1,58 +1,14 @@
-//! Module for handling command line arguments.
+//! Module defining the command line argument parser.
 
-use std::env;
-use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::{self, AppSettings, Arg, ArgMatches};
 use conv::TryFrom;
-use rofl::{ImageMacro, ImageMacroBuilder};
+use clap::{self, AppSettings, Arg, ArgMatches};
 
 use super::{NAME, VERSION};
+use super::image_macro::parse as parse_image_macro;
+use super::model::{ArgsError, Options};
 
-
-/// Parse command line arguments and return `Options` object.
-#[inline]
-pub fn parse() -> Result<Options, ArgsError> {
-    parse_from_argv(env::args_os())
-}
-
-/// Parse application options from given array of arguments
-/// (*all* arguments, including binary name).
-#[inline]
-pub fn parse_from_argv<I, T>(argv: I) -> Result<Options, ArgsError>
-    where I: IntoIterator<Item=T>, T: Clone + Into<OsString>
-{
-    let parser = create_parser();
-    let matches = try!(parser.get_matches_from_safe(argv));
-    Options::try_from(matches)
-}
-
-
-/// Structure to hold options received from the command line.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Options {
-    /// Verbosity of the logging output.
-    ///
-    /// Corresponds to the number of times the -v flag has been passed.
-    /// If -q has been used instead, this will be negative.
-    pub verbosity: isize,
-
-    /// The image macro to create.
-    pub image_macro: ImageMacro,
-    /// Path to write the finished image macro to.
-    ///
-    /// If absent, it shall be written to standard output.
-    pub output_path: Option<PathBuf>,
-}
-
-#[allow(dead_code)]
-impl Options {
-    #[inline]
-    pub fn verbose(&self) -> bool { self.verbosity > 0 }
-    #[inline]
-    pub fn quiet(&self) -> bool { self.verbosity < 0 }
-}
 
 impl<'a> TryFrom<ArgMatches<'a>> for Options {
     type Err = ArgsError;
@@ -64,12 +20,7 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 
         let image_macro = {
             let im = matches.value_of(ARG_MACRO).unwrap().trim();
-
-            // TODO: parse captions
-            ImageMacroBuilder::new()
-                .template(im)
-                .build()
-                .map_err(|_| ArgsError::ImageMacro(im.to_owned()))?
+            parse_image_macro(im)?
         };
 
         // Output path can be set explicit to stdout via `-`.
@@ -83,22 +34,11 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 }
 
 
-/// Error that can occur while parsing of command line arguments.
-#[derive(Debug, Error)]
-pub enum ArgsError {
-    /// General when parsing the arguments.
-    Parse(clap::Error),
-    /// Image macro spec syntax error.
-    #[error(no_from, non_std, msg = "invalid image macro syntax")]
-    ImageMacro(String),
-}
-
-
-// Parser configuration
+// Parser definition
 
 /// Type of the argument parser object
 /// (which is called an "App" in clap's silly nomenclature).
-type Parser<'p> = clap::App<'p, 'p>;
+pub type Parser<'p> = clap::App<'p, 'p>;
 
 
 lazy_static! {
@@ -112,7 +52,7 @@ const OPT_QUIET: &'static str = "quiet";
 
 
 /// Create the parser for application's command line.
-fn create_parser<'p>() -> Parser<'p> {
+pub fn create_parser<'p>() -> Parser<'p> {
     let mut parser = Parser::new(*NAME);
     if let Some(version) = *VERSION {
         parser = parser.version(version);
@@ -136,7 +76,7 @@ fn create_parser<'p>() -> Parser<'p> {
                 "Specification of the image macro to render.\n\n",
                 "The syntax is: TEMPLATE{CAPTION}{CAPTION}..., where CAPTION is just text ",
                 "or text preceded by alignment symbols: ^ - (middle), _ (bottom), ",
-                "<, - (center), >. (Vertical alignment must preceed horizontal alignment).")))
+                "<, | (center), >. (Vertical alignment must preceed horizontal alignment).")))
         // TODO: --json option to allow the image macro spec to be given as JSON
         // (by default on stdin rather than as argument)
 
