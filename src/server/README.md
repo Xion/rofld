@@ -22,7 +22,7 @@ Run it with `./cargo server run` and hit its `/caption` endpoint:
     # elsewhere
     $ curl http://127.0.0.1:1337/caption?template=zoidberg&top_text=Need%20a%20meme?&bottom_text=Why%20not%20Zoidberg?
 
-![Need a meme? / Why not Zoidberg?](zoidberg.png)
+![Need a meme? / Why not Zoidberg?](../../zoidberg.png)
 
 Want more templates? Put them in the `data/templates` directory, duh.
 
