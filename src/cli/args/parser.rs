@@ -87,7 +87,7 @@ pub fn create_parser<'p>() -> Parser<'p> {
                 "Specification of the image macro to render.\n\n",
                 "The syntax is: TEMPLATE{CAPTION}{CAPTION}..., where CAPTION is just text ",
                 "or text preceded by alignment symbols: ^ - (middle), _ (bottom), ",
-                "<, | (center), >. (Vertical alignment must preceed horizontal alignment).")))
+                "<, | (center), >. (Vertical alignment must precede horizontal alignment).")))
         .arg(Arg::with_name(OPT_JSON)
             .conflicts_with(ARG_MACRO)
             .long("json").short("j")

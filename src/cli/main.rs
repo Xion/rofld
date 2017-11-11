@@ -38,6 +38,8 @@ use std::io::{self, Write};
 use std::fs;
 use std::process::exit;
 
+use ansi_term::Colour;
+
 use args::ArgsError;
 
 
@@ -81,7 +83,11 @@ fn main() {
             trace!("No --output_path given, using standard output");
             if isatty::stdout_isatty() {
                 warn!("Standard output is a terminal.");
-                // TODO: ask for confirmation since this can screw user's terminal
+                let should_continue = ask_before_stdout().unwrap();
+                if !should_continue {
+                    debug!("User didn't want to print to stdout after all.");
+                    exit(exitcode::OK);
+                }
             }
             render(opts.image_macro, io::stdout())
         }
@@ -99,17 +105,38 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
             // message provided by the clap library will be the usage string.
             writeln!(&mut io::stderr(), "{}", e.message),
         e => {
-            writeln!(&mut io::stderr(), "Failed to parse arguments: {}", e)
+            writeln!(&mut io::stderr(), "Failed to parse a  rguments: {}", e)
         },
     }
 }
+
+
+/// Ask the user before printing out binary stuff to stdout.
+fn ask_before_stdout() -> io::Result<bool> {
+    write!(&mut io::stderr(), "{}", format_stdout_ack_prompt())?;
+    let mut answer = String::with_capacity(YES.len());
+    io::stdin().read_line(&mut answer)?;
+    Ok(answer.trim().to_lowercase() == YES)
+}
+
+/// Return the formatted prompt for stdout warning acknowledgment.
+fn format_stdout_ack_prompt() -> String {
+    const ACK_PROMPT: &'static str = "Do you wish to print the binary image output on standard output?";
+    if cfg!(unix) {
+        format!("{} [{}/{}]: ", ACK_PROMPT, YES, Colour::Green.paint("N"))
+    } else {
+        format!("{} [{}/{}]: ", ACK_PROMPT, YES, "N")
+    }
+}
+
+const YES: &'static str = "y";
 
 
 /// Render given `ImageMacro` and write it to the output.
 fn render<W: Write>(im: rofl::ImageMacro, mut output: W) -> io::Result<()> {
     trace!("Rendering macro {:#?}", im);
 
-    // TODO: allow to adjust the resource directories from command line
+    // TODO: allow to adjust the resource directories from the command line
     let engine = rofl::EngineBuilder::new()
         .template_directory("data/templates")
         .font_directory("data/fonts")

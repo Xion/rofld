@@ -132,7 +132,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     let valign_de =
                         IntoDeserializer::<de::value::Error>::into_deserializer(valign_part);
                     let valign = VAlign::deserialize(valign_de).unwrap();
-                    let mut caption = simple_captions.entry(valign)
+                    let caption = simple_captions.entry(valign)
                         .or_insert_with(|| Caption::at(valign));
 
                     match field_part {
@@ -159,7 +159,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     let font: String = map.next_value()?;
                     trace!("ImageMacro::font = {}", font);
                     for valign in VAlign::iter_variants() {
-                        let mut caption = simple_captions.entry(valign)
+                        let caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
                         caption.font = font.clone();
                     }
@@ -177,7 +177,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     let color: Color = map.next_value()?;
                     trace!("ImageMacro::color = {}", color);
                     for valign in VAlign::iter_variants() {
-                        let mut caption = simple_captions.entry(valign)
+                        let caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
                         caption.color = color;
                     }
@@ -195,7 +195,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                     let outline: Option<Color> = map.next_value()?;
                     trace!("ImageMacro::outline = {:?}", outline);
                     for valign in VAlign::iter_variants() {
-                        let mut caption = simple_captions.entry(valign)
+                        let caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
                         caption.outline = outline;
                     }
