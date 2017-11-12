@@ -39,8 +39,9 @@ use std::fs;
 use std::process::exit;
 
 use ansi_term::Colour;
+use exitcode::ExitCode;
 
-use args::ArgsError;
+use args::{ArgsError, Options};
 
 
 lazy_static! {
@@ -67,34 +68,8 @@ fn main() {
     }
     trace!("Options parsed from argv:\n{:#?}", opts);
 
-    match opts.output_path.as_ref() {
-        Some(path) => {
-            trace!("Opening --output_path file {}...", path.display());
-            let file = fs::OpenOptions::new()
-                .create(true).write(true).append(false)
-                .open(path).unwrap_or_else(|e| {
-                    error!("Failed to open output file {} for writing: {}", path.display(), e);
-                    exit(exitcode::CANTCREAT);
-                });
-            debug!("File {} opened successfully", path.display());
-            render(opts.image_macro, file)
-        }
-        None => {
-            trace!("No --output_path given, using standard output");
-            if isatty::stdout_isatty() {
-                warn!("Standard output is a terminal.");
-                let should_continue = ask_before_stdout().unwrap();
-                if !should_continue {
-                    debug!("User didn't want to print to stdout after all.");
-                    exit(exitcode::OK);
-                }
-            }
-            render(opts.image_macro, io::stdout())
-        }
-    }.unwrap_or_else(|e| {
-        error!("Error while rendering image macro: {}", e);
-        exit(exitcode::UNAVAILABLE);
-    });
+    let exit_code = run(opts);
+    exit(exit_code)
 }
 
 /// Print an error that may occur while parsing arguments.
@@ -105,8 +80,51 @@ fn print_args_error(e: ArgsError) -> io::Result<()> {
             // message provided by the clap library will be the usage string.
             writeln!(&mut io::stderr(), "{}", e.message),
         e => {
-            writeln!(&mut io::stderr(), "Failed to parse a  rguments: {}", e)
+            writeln!(&mut io::stderr(), "Failed to parse arguments: {}", e)
         },
+    }
+}
+
+/// Run the application with given options.
+fn run(opts: Options) -> ExitCode {
+    let result = match opts.output_path.as_ref() {
+        Some(path) => {
+            trace!("Opening --output_path file {}...", path.display());
+            let file = fs::OpenOptions::new()
+                .create(true).write(true).append(false)
+                .open(path);
+            match file {
+                Ok(file) => {
+                    debug!("File {} opened successfully", path.display());
+                    render(opts.image_macro, file)
+                }
+                Err(e) => {
+                    error!("Failed to open output file {} for writing: {}",
+                        path.display(), e);
+                    return exitcode::CANTCREAT;
+                }
+            }
+        }
+        None => {
+            trace!("No --output_path given, using standard output");
+            if isatty::stdout_isatty() {
+                warn!("Standard output is a terminal.");
+                let should_continue = ask_before_stdout().unwrap();
+                if !should_continue {
+                    debug!("User didn't want to print to stdout after all.");
+                    return exitcode::OK;
+                }
+            }
+            render(opts.image_macro, io::stdout())
+        }
+    };
+
+    match result {
+        Ok(_) => exitcode::OK,
+        Err(e) => {
+            error!("Error while rendering image macro: {}", e);
+            exitcode::UNAVAILABLE
+        }
     }
 }
 
@@ -121,7 +139,8 @@ fn ask_before_stdout() -> io::Result<bool> {
 
 /// Return the formatted prompt for stdout warning acknowledgment.
 fn format_stdout_ack_prompt() -> String {
-    const ACK_PROMPT: &'static str = "Do you wish to print the binary image output on standard output?";
+    const ACK_PROMPT: &'static str =
+        "Do you wish to print the binary image output on standard output?";
     if cfg!(unix) {
         format!("{} [{}/{}]: ", ACK_PROMPT, YES, Colour::Green.paint("N"))
     } else {
@@ -144,6 +163,6 @@ fn render<W: Write>(im: rofl::ImageMacro, mut output: W) -> io::Result<()> {
     let captioned = engine.caption(im)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    trace!("Writing {} bytes to --output_path...", captioned.len());
+    trace!("Writing {} bytes to the output...", captioned.len());
     output.write_all(captioned.bytes())
 }

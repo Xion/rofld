@@ -69,7 +69,7 @@ impl fmt::Display for ArgsError {
                 write!(fmt, "image macro argument syntax error: {}", e)
             }
             ArgsError::ImageMacroJson(ref e) => {
-                write!(fmt, "image maccro JSON error: {}", e)
+                write!(fmt, "image macro JSON error: {}", e)
             }
         }
     }

@@ -84,10 +84,11 @@ named!(root(&str) -> ImageMacro, do_parse!(
 /// Parse a single `Caption`.
 named!(caption(&str) -> Caption, do_parse!(
     tag_s!("{") >>
-    valign: opt!(valign) >> halign: opt!(halign) >>
+    align: align >>
     text: take_until_s!("}") >>  // TODO: escaping of } so it can be included in text
     tag_s!("}") >>
     ({
+        let (valign, halign) = align;
         let mut builder = CaptionBuilder::new()
             .valign(valign.unwrap_or(VAlign::Bottom));
             // TODO: determine valign (if not given) based on number of captions
@@ -100,6 +101,14 @@ named!(caption(&str) -> Caption, do_parse!(
         builder.build().unwrap()
     })
 ));
+
+/// Parse the alignment symbol(s).
+named!(align(&str) -> (Option<VAlign>, Option<HAlign>), map!(opt!(alt_complete!(
+    pair!(valign, halign) => { |(v, h)| (Some(v), Some(h)) } |
+    pair!(halign, valign) => { |(h, v)| (Some(v), Some(h)) } |
+    valign => { |v| (Some(v), None) } |
+    halign => { |h| (None, Some(h)) }
+)), |a| a.unwrap_or((None, None))));
 
 /// Parse the vertical alignment character marker.
 named!(valign(&str) -> VAlign, alt!(
