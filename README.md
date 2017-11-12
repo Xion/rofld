@@ -11,6 +11,7 @@ This is a joint repo for:
 
 * the _rofld_ meme server (`src/server`)
 * the [_rofl_ crate](https://crates.io/crates/rofl) which powers it (`src/lib`)
+* [WIP] the _roflsh_ CLI application (`src/cli`)
 
 ## Why?
 

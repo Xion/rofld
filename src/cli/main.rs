@@ -13,6 +13,7 @@
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate nom;
              extern crate rofl;
+             extern crate serde_json;
 #[macro_use] extern crate slog;
              extern crate slog_envlogger;
              extern crate slog_stdlog;
@@ -23,6 +24,9 @@
 // * use the standard `log` macros (which would be shadowed by `slog` or even `nom`)
 // * be able to initialize the slog logger using slog macros like o!()
 #[macro_use] extern crate log;
+
+
+#[cfg(test)] #[macro_use] extern crate spectral;
 
 
 mod args;

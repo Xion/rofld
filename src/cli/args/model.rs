@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use clap;
 use rofl::ImageMacro;
+use serde_json;
 
 use super::image_macro::Error as ImageMacroError;
 
@@ -42,8 +43,10 @@ macro_attr! {
     pub enum ArgsError {
         /// General when parsing the arguments.
         Parse(clap::Error),
-        /// Image macro spec syntax error.
-        ImageMacro(ImageMacroError),
+        /// Image macro argument syntax error.
+        ImageMacroArg(ImageMacroError),
+        /// Image macro --json parsing error.
+        ImageMacroJson(serde_json::Error),
     }
 }
 
@@ -52,7 +55,8 @@ impl Error for ArgsError {
     fn cause(&self) -> Option<&Error> {
         match *self {
             ArgsError::Parse(ref e) => Some(e),
-            ArgsError::ImageMacro(ref e) => Some(e),
+            ArgsError::ImageMacroArg(ref e) => Some(e),
+            ArgsError::ImageMacroJson(ref e) => Some(e),
         }
     }
 }
@@ -61,7 +65,12 @@ impl fmt::Display for ArgsError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ArgsError::Parse(ref e) => write!(fmt, "invalid arguments: {}", e),
-            ArgsError::ImageMacro(ref e) => write!(fmt, "image macro syntax error: {}", e),
+            ArgsError::ImageMacroArg(ref e) => {
+                write!(fmt, "image macro argument syntax error: {}", e)
+            }
+            ArgsError::ImageMacroJson(ref e) => {
+                write!(fmt, "image maccro JSON error: {}", e)
+            }
         }
     }
 }

@@ -1,9 +1,11 @@
 //! Module defining the command line argument parser.
 
+use std::io;
 use std::path::PathBuf;
 
 use conv::TryFrom;
-use clap::{self, AppSettings, Arg, ArgMatches};
+use clap::{self, AppSettings, Arg, ArgGroup, ArgMatches};
+use serde_json;
 
 use super::{NAME, VERSION};
 use super::image_macro::parse as parse_image_macro;
@@ -18,9 +20,14 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let quiet_count = matches.occurrences_of(OPT_QUIET) as isize;
         let verbosity = verbose_count - quiet_count;
 
-        let image_macro = {
-            let im = matches.value_of(ARG_MACRO).unwrap().trim();
-            parse_image_macro(im)?
+        let image_macro = match matches.value_of(ARG_MACRO) {
+            Some(im) => parse_image_macro(im.trim())?,
+            None => {
+                assert!(matches.is_present(OPT_JSON),
+                    "Command line incorrectly parsed without either `{}` argument or --{} flag",
+                    ARG_MACRO, OPT_JSON);
+                serde_json::from_reader(&mut io::stdin())?
+            }
         };
 
         // Output path can be set explicit to stdout via `-`.
@@ -45,7 +52,9 @@ lazy_static! {
     static ref ABOUT: &'static str = option_env!("CARGO_PKG_DESCRIPTION").unwrap_or("");
 }
 
+const ARGGRP_MACRO: &'static str = "image_macro";
 const ARG_MACRO: &'static str = "macro";
+const OPT_JSON: &'static str = "json";
 const OPT_OUTPUT: &'static str = "output";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
@@ -68,17 +77,24 @@ pub fn create_parser<'p>() -> Parser<'p> {
         .setting(AppSettings::DeriveDisplayOrder)
 
         // Image macro specification.
+        .group(ArgGroup::with_name(ARGGRP_MACRO)
+            .args(&[ARG_MACRO, OPT_JSON])
+            .required(true))  // TODO: make it optional and add interactive option
         .arg(Arg::with_name(ARG_MACRO)
             .value_name("MACRO")
-            .required(true)  // TODO: make it optional and add interactive option
             .help("Image macro to render")
             .long_help(concat!(
                 "Specification of the image macro to render.\n\n",
                 "The syntax is: TEMPLATE{CAPTION}{CAPTION}..., where CAPTION is just text ",
                 "or text preceded by alignment symbols: ^ - (middle), _ (bottom), ",
                 "<, | (center), >. (Vertical alignment must preceed horizontal alignment).")))
-        // TODO: --json option to allow the image macro spec to be given as JSON
-        // (by default on stdin rather than as argument)
+        .arg(Arg::with_name(OPT_JSON)
+            .conflicts_with(ARG_MACRO)
+            .long("json").short("j")
+            .help("Whether to expect image macro as JSON on stdin")
+            .long_help(concat!(
+                "If present, the image macro specification will be read as JSON ",
+                "from the program's standard input.")))
 
         // Output flags.
         .arg(Arg::with_name(OPT_OUTPUT)

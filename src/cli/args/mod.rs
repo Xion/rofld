@@ -31,3 +31,21 @@ pub fn parse_from_argv<I, T>(argv: I) -> Result<Options, ArgsError>
     let matches = try!(parser.get_matches_from_safe(argv));
     Options::try_from(matches)
 }
+
+
+#[cfg(test)]
+mod tests {
+    use spectral::prelude::*;
+    use super::parse_from_argv;
+    use ::NAME;
+
+    #[test]
+    fn no_args() {
+        assert_that!(parse_from_argv(Vec::<&str>::new())).is_err();
+        assert_that!(parse_from_argv(vec![*NAME])).is_err();
+    }
+
+    // TODO: test MACRO argument
+    // TODO: test the --json flag (which is actually difficult because it requires mocking
+    // or DI'ing or otherwise seeding the stdin with JSON)
+}
