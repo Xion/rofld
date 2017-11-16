@@ -34,7 +34,7 @@ pub fn parse(s: &str) -> Result<ImageMacro, Error> {
 /// Error that can occur when parsing image macro specification.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
-    /// Erorr during parsing.
+    /// Error during parsing.
     // TODO: better error here
     Parse,
     /// Error for when we expected this many bytes of more input than we've got.

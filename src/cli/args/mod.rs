@@ -134,7 +134,28 @@ mod tests {
         assert_eq!(HAlign::Right, caption2.halign);
     }
 
-    // TODO: tests for invalid MACRO values & the errors
+    #[test]
+    fn macro_error_no_template() {
+        assert_that!(parse_from_argv(vec![*NAME, "{}"])).is_err();
+        assert_that!(parse_from_argv(vec![*NAME, "{Test}"])).is_err();
+    }
+
+    #[test]
+    fn macro_error_unclosed_brace() {
+        assert_that!(parse_from_argv(vec![*NAME, "zoidberg{Test"])).is_err();
+    }
+
+    #[test]
+    fn macro_error_nested_braces() {
+        assert_that!(parse_from_argv(vec![*NAME, "zoidberg{Test{More tests}}"]))
+            .is_err();
+    }
+
+    #[test]
+    fn macro_error_closing_brace_first() {
+        assert_that!(parse_from_argv(vec![*NAME, "zoidberg}"])).is_err();
+    }
+
     // TODO: test the --json flag (which is actually difficult because it requires mocking
     // or DI'ing or otherwise seeding the stdin with JSON)
 }
