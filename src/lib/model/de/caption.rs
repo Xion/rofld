@@ -4,11 +4,13 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Visitor, Unexpected};
 
-use super::super::{Caption, DEFAULT_FONT, DEFAULT_HALIGN, DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR};
+use super::super::{Caption, Size,
+                   DEFAULT_FONT, DEFAULT_HALIGN, DEFAULT_COLOR,
+                   DEFAULT_OUTLINE_COLOR, DEFAULT_TEXT_SIZE};
 
 
 const FIELDS: &'static [&'static str] = &[
-    "text", "align", "valign", "font", "color", "outline",
+    "text", "align", "valign", "font", "color", "outline", "size",
 ];
 const REQUIRED_FIELDS_COUNT: usize = 2;  // text & valign
 
@@ -52,6 +54,7 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let mut font = None;
         let mut color = None;
         let mut outline: Option<Option<_>> = None;
+        let mut size = None;
 
         while let Some(key) = map.next_key::<String>()? {
             let key = key.trim().to_lowercase();
@@ -100,6 +103,12 @@ impl<'de> Visitor<'de> for CaptionVisitor {
                     }
                     outline = Some(map.next_value()?);
                 }
+                "size" => {
+                    if size.is_some() {
+                        return Err(de::Error::duplicate_field("size"));
+                    }
+                    size = Some(map.next_value()?);
+                }
                 key => return Err(de::Error::unknown_field(key, FIELDS)),
             }
         }
@@ -110,8 +119,9 @@ impl<'de> Visitor<'de> for CaptionVisitor {
         let font = font.unwrap_or(DEFAULT_FONT).into();
         let color = color.unwrap_or(DEFAULT_COLOR);
         let outline = outline.unwrap_or_else(|| Some(DEFAULT_OUTLINE_COLOR));
+        let size = size.unwrap_or_else(|| Size::Fixed(DEFAULT_TEXT_SIZE));
 
-        Ok(Caption{text, halign, valign, font, color, outline})
+        Ok(Caption{text, halign, valign, font, color, outline, size})
     }
 }
 
@@ -284,4 +294,6 @@ mod tests {
                 .map(|c| &c.outline).is_none();
         }
     }
+
+    // TODO: tests for "size" field
 }

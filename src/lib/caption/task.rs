@@ -8,7 +8,7 @@ use std::sync::Arc;
 use image::{self, DynamicImage, FilterType, GenericImage, ImageFormat};
 use rusttype::{point, Rect, vector};
 
-use model::{Caption, ImageMacro};
+use model::{Caption, ImageMacro, Size, DEFAULT_TEXT_SIZE};
 use resources::{Loader, Font, FontLoader, Template, TemplateLoader};
 use util::animated_gif;
 use util::text::{self, Style};
@@ -166,14 +166,17 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
 
         let alignment = (caption.halign, caption.valign);
 
-        // TODO: either make this an ImageMacro parameter,
-        // or allow to choose between Wrap and Shrink methods of text fitting
-        let text_size = 64.0;
+        let text_size = match caption.size {
+            Size::Fixed(s) => s,
+            Size::Shrink =>
+                text::fit_line(rect, &caption.text, &*font).unwrap_or(DEFAULT_TEXT_SIZE)
+        };
 
         // Draw four copies of the text, shifted in four diagonal directions,
         // to create the basis for an outline.
         if let Some(outline_color) = caption.outline {
             let outline_width = 2.0;
+            debug!("Drawing text outline (width = {})", outline_width);
             for &v in [vector(-outline_width, -outline_width),
                        vector(outline_width, -outline_width),
                        vector(outline_width, outline_width),
@@ -185,6 +188,7 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
         }
 
         // Now render the white text in the original position.
+        debug!("Rendering actual caption text...");
         let style = Style::new(&font, text_size, caption.color);
         img = text::render_text(img, &caption.text, alignment, rect, style);
 

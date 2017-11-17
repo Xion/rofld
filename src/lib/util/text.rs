@@ -11,7 +11,7 @@ use regex::Regex;
 use rusttype::{GlyphId, Font, point, Point, Rect, Scale};
 use unreachable::unreachable;
 
-use model::{Color, HAlign, VAlign};
+use model::{Color, HAlign, VAlign, DEFAULT_TEXT_SIZE};
 
 
 /// Check if given font has all the glyphs for given text.
@@ -225,6 +225,48 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
     }
 
     img
+}
+
+
+/// Return the maximum text size that'd still allow us to fit a line
+/// within given rectangle.
+///
+/// The size returned may be ridiculous if the text is long enough
+/// (or the image small enough). However, if the size cannot be determined
+/// in reasonable number of iterations, None is returned.
+pub fn fit_line<'s, 'f>(rect: Rect<f32>, s: &'s str, font: &'f Font<'f>) -> Option<f32> {
+    trace!("fit_line({:?}, {:?}, ...)", rect, s);
+    if rect.width() <= 0.0 {
+        return None;
+    }
+
+    let mut size = DEFAULT_TEXT_SIZE;
+    let color = Color::white();  // not used, but needed for Style
+
+    // Gradually shrink the size and try to fit it,
+    // but prevent infinite loops if we can't fit it after all.
+    const MAX_ITERS: usize = 16;
+    let mut iters = 1;
+    while iters <= MAX_ITERS && text_width(s, &Style::new(font, size, color)) > rect.width() {
+        const SHRINK_FACTOR: f32 = 0.9;
+        let new_size = size * SHRINK_FACTOR;
+        if new_size == size {
+            // Seems we got REALLY small and float inaccuracies started to matter.
+            warn!("Text size lost accuracy ({:?}) after {} iterations, starting from {}",
+                new_size, iters, DEFAULT_TEXT_SIZE);
+            return None;
+        }
+        size = new_size;
+        iters += 1;
+    }
+
+    if iters > MAX_ITERS {
+        warn!(
+            "Couldn't fit the text in a {}x{} rect even after {} iterations (last attempt: {})",
+            rect.width(), rect.height(), MAX_ITERS, size);
+        return None;
+    }
+    Some(size)
 }
 
 

@@ -15,6 +15,9 @@ pub const DEFAULT_OUTLINE_COLOR: Color = Color(0x0, 0x0, 0x0);
 /// Default horizontal alignment of text.
 pub const DEFAULT_HALIGN: HAlign = HAlign::Center;
 
+/// Default size of caption text.
+pub const DEFAULT_TEXT_SIZE: f32 = 64.0;
+
 
 /// Maximum number of captions an ImageMacro can have.
 pub const MAX_CAPTION_COUNT: usize = 16;

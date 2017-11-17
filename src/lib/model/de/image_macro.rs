@@ -9,7 +9,7 @@ use serde::de::{self, Deserialize, IntoDeserializer, Visitor, Unexpected};
 use unicode_normalization::UnicodeNormalization;
 use unreachable::unreachable;
 
-use super::super::{Caption, Color, ImageMacro, VAlign,
+use super::super::{Caption, Color, ImageMacro, Size, VAlign,
                    DEFAULT_COLOR, DEFAULT_OUTLINE_COLOR, DEFAULT_FONT, DEFAULT_HALIGN,
                    MAX_CAPTION_COUNT, MAX_WIDTH, MAX_HEIGHT, MAX_CAPTION_LENGTH};
 
@@ -20,7 +20,7 @@ const FIELDS: &'static [&'static str] = &[
 ];
 /// Semi-official fields that allow to set properties of all captions at once.
 const WHOLESALE_CAPTION_FIELDS: &'static [&'static str] = &[
-    "font", "color", "outline",
+    "font", "color", "outline", "size",
 ];
 // How many fields (of any kind) are required at the very minimum.
 const REQUIRED_FIELDS_COUNT: usize = 1;  // template
@@ -113,7 +113,8 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                 "top_align"   | "middle_align"   | "bottom_align"   |
                 "top_font"    | "middle_font"    | "bottom_font"    |
                 "top_color"   | "middle_color"   | "bottom_color"   |
-                "top_outline" | "middle_outline" | "bottom_outline" => {
+                "top_outline" | "middle_outline" | "bottom_outline" |
+                "top_size"    | "middle_size"    | "bottom_size"    => {
                     let is_duplicate = simple_fields.contains(&key) ||
                         WHOLESALE_CAPTION_FIELDS.iter().any(|&f| {
                             key.ends_with(&format!("_{}", f)) && simple_fields.contains(f)
@@ -122,7 +123,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         return Err(de::Error::custom(format_args!("duplicate field `{}`", key)));
                     }
                     simple_fields.insert(key.clone());
-                    trace!("ImageMacro::{} = ...", key);
+                    trace!("ImageMacro::{} = <snip>", key);
 
                     let mut parts = key.split("_");
                     let (valign_part, field_part) = (parts.next().unwrap(),
@@ -141,6 +142,7 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         "font" => caption.font = map.next_value()?,
                         "color" => caption.color = map.next_value()?,
                         "outline" => caption.outline = map.next_value()?,
+                        "size" => caption.size = map.next_value()?,
                         _ => unsafe { unreachable(); },
                     }
                 }
@@ -198,6 +200,24 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
                         let caption = simple_captions.entry(valign)
                             .or_insert_with(|| Caption::at(valign));
                         caption.outline = outline;
+                    }
+                }
+                "size" => {
+                    assert!(WHOLESALE_CAPTION_FIELDS.contains(&key.as_str()));
+
+                    let is_duplicate = simple_fields.contains(&key) ||
+                        simple_fields.iter().any(|f| f.ends_with("_size"));
+                    if is_duplicate {
+                        return Err(de::Error::duplicate_field("size"));
+                    }
+                    simple_fields.insert("size".into());
+
+                    let size: Size = map.next_value()?;
+                    trace!("ImageMacro::size = {:?}", size);
+                    for valign in VAlign::iter_variants() {
+                        let caption = simple_captions.entry(valign)
+                            .or_insert_with(|| Caption::at(valign));
+                        caption.size = size;
                     }
                 }
 
@@ -279,6 +299,17 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
             caption.text = normalize_text(&caption.text)?;
         }
 
+        // TODO: support shrinking for multiline texts as well
+        // (will require doing the line break + checking if the resulting text
+        // fits by height, too, for each size we try in text::fit_line
+        // (or more like text::fit_text))
+        for caption in &captions {
+            if caption.size == Size::Shrink && caption.text.contains("\n") {
+                return Err(de::Error::custom(
+                    "\"size\": \"shrink\" is only supported for single-line captions"));
+            }
+        }
+
         let template = template.ok_or_else(|| de::Error::missing_field("template"))?;
         Ok(ImageMacro{template, width, height, captions})
     }
@@ -327,6 +358,7 @@ impl<'de> Visitor<'de> for SourcedCaptionVisitor {
             font: DEFAULT_FONT.into(),
             color: DEFAULT_COLOR,
             outline: Some(DEFAULT_OUTLINE_COLOR),
+            size: Size::default(),
         };
         let result = SourcedCaption(CaptionSource::Text, caption);
         Ok(result)
