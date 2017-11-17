@@ -44,6 +44,13 @@ fn full_captions_with_valign_and_color() {
     assert_that!(parse(input)).is_ok().is_equal_to(&*FULL_OF_COLORS);
 }
 
+#[test]
+fn caption_text_with_ampersand() {
+    // The ampersand is of course URL-encoded (as %26).
+    let input = "template=zoidberg?top_text=Need%20a%20meme%20%26%20text?";
+    assert_that!(parse(input)).is_ok();
+}
+
 
 // Common test data
 
