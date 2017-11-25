@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::ops::{Add, Div, Sub};
 
+use float_ord::FloatOrd;
 use image::{DynamicImage, GenericImage};
 use itertools::Itertools;
 use num::One;
@@ -110,6 +111,12 @@ impl<'f> Style<'f> {
     pub fn scale(&self) -> Scale {
         Scale::uniform(self.size)
     }
+
+    /// Return the line height for a text in this style.
+    pub fn line_height(&self) -> f32 {
+        let v_metrics = self.font.v_metrics(self.scale());
+        v_metrics.ascent + v_metrics.line_gap
+    }
 }
 
 impl<'f> fmt::Debug for Style<'f> {
@@ -136,15 +143,13 @@ pub fn render_text<A: Into<Alignment>>(img: DynamicImage,
     let mut lines = break_lines(s, &style, rect.width());
     trace!("Text broken into {} line(s)", lines.len());
 
-    let v_metrics = style.font.v_metrics(style.scale());
-    let line_height = v_metrics.ascent + v_metrics.line_gap;
-
     // TODO: do we need some adjustment for VAlign::Middle, too?
     if align.vertical == VAlign::Bottom {
         lines.reverse();
     }
 
     let mut rect = rect;
+    let line_height = style.line_height();
     for line in lines {
         img = render_line(img, &line, align, rect, &style);
 
@@ -161,7 +166,6 @@ pub fn render_text<A: Into<Alignment>>(img: DynamicImage,
     }
     img
 }
-
 
 /// Renders a line of text onto given image.
 ///
@@ -228,18 +232,80 @@ pub fn render_line<A: Into<Alignment>>(img: DynamicImage,
 }
 
 
-/// Return the maximum text size that'd still allow us to fit a line
+/// Return the maximum text size that'd still allow us to fit the text
 /// within given rectangle.
 ///
 /// The size returned may be ridiculous if the text is long enough
-/// (or the image small enough). However, if the size cannot be determined
+/// (or the rectangle is small enough). However, if the size cannot be determined
 /// in reasonable number of iterations, None is returned.
-pub fn fit_line<'s, 'f>(rect: Rect<f32>, s: &'s str, font: &'f Font<'f>) -> Option<f32> {
-    trace!("fit_line({:?}, {:?}, ...)", rect, s);
-    if rect.width() <= 0.0 {
+pub fn fit_text<'s, 'f>(rect: Rect<f32>, s: &'s str, font: &'f Font<'f>) -> Option<f32> {
+    trace!("fit_text({:?}, <{} bytes of text>, ...", rect, s.len());
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
         return None;
     }
 
+    // TODO: pick a larger default size so that short texts will
+    // still completely fill larger rectangles
+    let mut size = DEFAULT_TEXT_SIZE;
+    let unused_color = Color::white();  // not used, but needed for Style
+
+    // Gradually shrink the text, break it into lines,
+    // and try to fit it within the given rectangle.
+    ///
+    // Continue to do so until succeeded,
+    // or a maximum number of iterations has been reached.
+    const SHRINK_FACTOR: f32 = 0.9;
+    const MAX_ITERS: usize = 16;
+    let mut iters = 1;
+    while iters <= MAX_ITERS {
+        let style = Style::new(font, size, unused_color);
+        let lines = break_lines(s, &style, rect.width());
+
+        let width = lines.iter().map(|line| text_width(line, &style))
+            .map(FloatOrd).max().map(|w| w.0)
+            .unwrap_or(0.0);
+        let height = lines.len() as f32 * style.line_height();
+        if width <= rect.width() && height <= rect.height() {
+            break;  // Found a fitting size.
+        }
+
+        let new_size = size * SHRINK_FACTOR;
+        if new_size >= size {
+            // Seems we got REALLY small and float inaccuracies started to matter.
+            warn!("Text size lost accuracy ({:?}) after {} iterations, starting from size {}",
+                new_size, iters, DEFAULT_TEXT_SIZE);
+            return None;
+        }
+        size = new_size;
+        iters += 1;
+    }
+
+    if iters > MAX_ITERS {
+        warn!(
+            "Couldn't fit text in a {}x{} rect even after {} iterations (last attempt: {})",
+            rect.width(), rect.height(), MAX_ITERS, size);
+        return None;
+    }
+    Some(size)
+}
+
+/// Return the maximum text size that'd still allow us to fit a line
+/// within given maximum width.
+///
+/// The size returned may be ridiculous if the text is long enough
+/// (or max_width is low enough). However, if the size cannot be determined
+/// in reasonable number of iterations, None is returned.
+///
+/// This should only be called on single-line texts.
+/// Any preexisting line break characters will be ignored.
+pub fn fit_line<'s, 'f>(max_width: f32, s: &'s str, font: &'f Font<'f>) -> Option<f32> {
+    trace!("fit_line({:?}, <{} bytes of text>, ...)", max_width, s.len());
+    if max_width <= 0.0 {
+        return None;
+    }
+
+    // TODO: pick a larger default size so that short texts will
+    // still completely fill larger rectangles
     let mut size = DEFAULT_TEXT_SIZE;
     let color = Color::white();  // not used, but needed for Style
 
@@ -247,10 +313,10 @@ pub fn fit_line<'s, 'f>(rect: Rect<f32>, s: &'s str, font: &'f Font<'f>) -> Opti
     // but prevent infinite loops if we can't fit it after all.
     const MAX_ITERS: usize = 16;
     let mut iters = 1;
-    while iters <= MAX_ITERS && text_width(s, &Style::new(font, size, color)) > rect.width() {
+    while iters <= MAX_ITERS && text_width(s, &Style::new(font, size, color)) > max_width {
         const SHRINK_FACTOR: f32 = 0.9;
         let new_size = size * SHRINK_FACTOR;
-        if new_size == size {
+        if new_size >= size {
             // Seems we got REALLY small and float inaccuracies started to matter.
             warn!("Text size lost accuracy ({:?}) after {} iterations, starting from {}",
                 new_size, iters, DEFAULT_TEXT_SIZE);
@@ -262,15 +328,42 @@ pub fn fit_line<'s, 'f>(rect: Rect<f32>, s: &'s str, font: &'f Font<'f>) -> Opti
 
     if iters > MAX_ITERS {
         warn!(
-            "Couldn't fit the text in a {}x{} rect even after {} iterations (last attempt: {})",
-            rect.width(), rect.height(), MAX_ITERS, size);
+            "Couldn't fit text in a width of {} even after {} iterations (last attempt: {})",
+            max_width, MAX_ITERS, size);
         return None;
     }
     Some(size)
 }
 
 
-// Utility functions
+// Text measurement.
+
+/// Compute the pixel width of given text.
+fn text_width(s: &str, style: &Style) -> f32 {
+    // Compute text width as the final X position of the "caret"
+    // after laying out all the glyphs, starting from X=0.
+    let glyphs: Vec<_> = style.font
+        .layout(s, style.scale(), point(0.0, /* unused */ 0.0))
+        .collect();
+    glyphs.iter()
+        .rev()
+        .filter_map(|g| g.pixel_bounding_box().map(|bb| {
+            bb.min.x as f32 + g.unpositioned().h_metrics().advance_width
+        }))
+        .next().unwrap_or(0.0)
+}
+
+/// Compute the pixel width of given character.
+fn char_width(c: char, style: &Style) -> f32 {
+    // This isn't just text_width() call for a 1-char string,
+    // because the result would include a bounding box shift used for kerning.
+    style.font.glyph(c)
+        .map(|g| g.scaled(style.scale()).h_metrics().advance_width)
+        .unwrap_or(0.0)
+}
+
+
+// Line breaking.
 
 /// Break the text into lines, fitting given width.
 fn break_lines(s: &str, style: &Style, line_width: f32) -> Vec<String> {
@@ -293,7 +386,7 @@ fn break_single_line(s: &str, style: &Style, line_width: f32) -> Vec<String> {
         segments.iter().map(|s| is_word(s)).count(),
         segments.iter().map(|s| !is_word(s)).count());
 
-    let mut result = vec![];
+    let mut result = Vec::with_capacity(segments.len() / 2 /* a guess */);
 
     let mut current_line = String::new();
     let mut current_width = 0.0;
@@ -375,28 +468,4 @@ fn break_single_line(s: &str, style: &Style, line_width: f32) -> Vec<String> {
     }
 
     result
-}
-
-/// Compute the pixel width of given text.
-fn text_width(s: &str, style: &Style) -> f32 {
-    // Compute text width as the final X position of the "caret"
-    // after laying out all the glyphs, starting from X=0.
-    let glyphs: Vec<_> = style.font
-        .layout(s, style.scale(), point(0.0, /* unused */ 0.0))
-        .collect();
-    glyphs.iter()
-        .rev()
-        .filter_map(|g| g.pixel_bounding_box().map(|bb| {
-            bb.min.x as f32 + g.unpositioned().h_metrics().advance_width
-        }))
-        .next().unwrap_or(0.0)
-}
-
-/// Compute the pixel width of given character.
-fn char_width(c: char, style: &Style) -> f32 {
-    // This isn't just text_width() call for a 1-char string,
-    // because the result would include a bounding box shift used for kerning.
-    style.font.glyph(c)
-        .map(|g| g.scaled(style.scale()).h_metrics().advance_width)
-        .unwrap_or(0.0)
 }

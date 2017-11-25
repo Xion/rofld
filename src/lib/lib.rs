@@ -69,6 +69,7 @@
 #[macro_use] extern crate derive_error;
 #[macro_use] extern crate enum_derive;
              extern crate either;
+             extern crate float_ord;
              extern crate gif;
              extern crate gif_dispose;
              extern crate glob;

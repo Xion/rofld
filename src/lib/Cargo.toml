@@ -28,6 +28,7 @@ derive_builder = { version = "0.4", features = ["private_fields"] }
 derive-error = "0.0.3"
 enum_derive = "0.1"
 either = "1.1"
+float-ord = "0.1"
 gif = "0.9"
 gif-dispose = "1.0.1"
 glob = "0.2"

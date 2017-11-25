@@ -168,8 +168,11 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
 
         let text_size = match caption.size {
             Size::Fixed(s) => s,
-            Size::Shrink =>
-                text::fit_line(rect, &caption.text, &*font).unwrap_or(DEFAULT_TEXT_SIZE)
+            // TODO: change ::Shrink to ::Fit, and make ::Shrink use text::fit_line instead
+            // (so that it can be used to ensure a single line won't be broken up
+            // while still getting shrunk if necessary to be completely visible)
+            Size::Shrink => text::fit_text(rect, &caption.text, &*font)
+                .unwrap_or(DEFAULT_TEXT_SIZE)
         };
 
         // Draw four copies of the text, shifted in four diagonal directions,
