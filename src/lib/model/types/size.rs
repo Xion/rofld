@@ -1,8 +1,6 @@
 //! Module defining the text size enum.
 
-use std::cmp::Ordering;
-
-use num::Float;
+use float_ord::FloatOrd;
 
 use super::super::constants::DEFAULT_TEXT_SIZE;
 
@@ -11,9 +9,18 @@ use super::super::constants::DEFAULT_TEXT_SIZE;
 #[derive(Clone, Copy, Debug)]
 pub enum Size {
     /// Use fixed text size.
+    ///
+    /// The text will be broken up into multiple lines if necessary,
+    /// but its size will remain constant.
     Fixed(f32),
-    /// Shrink the caption to fit the image.
+    /// Shrink a single line caption to fit the image.
+    ///
+    /// Caption text will not be broken into multiple lines
+    /// and any preexisting line breaks will be ignored
     Shrink,
+    /// Fit the text within the image,
+    /// breaking it up and reducing its size if necessary.
+    Fit,
 }
 
 impl Size {
@@ -50,24 +57,11 @@ impl From<f64> for Size {
 impl PartialEq for Size {
     fn eq(&self, other: &Self) -> bool {
         match (*self, *other) {
-            (Size::Fixed(a), Size::Fixed(b)) =>
-                float_cmp_equal_nans(a, b) == Ordering::Equal,
+            (Size::Fixed(a), Size::Fixed(b)) => FloatOrd(a).eq(&FloatOrd(b)),
             (Size::Shrink, Size::Shrink) => true,
+            (Size::Fit, Size::Fit) => true,
             _ => false,
         }
     }
 }
 impl Eq for Size {}
-
-// Utility functions
-
-/// Compare two floating point values in such a way that NaNs are treated
-/// as equal to each other.
-fn float_cmp_equal_nans<T: Copy + Float>(a: T, b: T) -> Ordering {
-    match (a, b) {
-        (x, y) if x.is_nan() && y.is_nan() => Ordering::Equal,
-        (x, _) if x.is_nan() => Ordering::Greater,
-        (_, y) if y.is_nan() => Ordering::Less,
-        (_, _) => a.partial_cmp(&b).unwrap()
-    }
-}

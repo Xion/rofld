@@ -9,7 +9,7 @@ use serde::de::{self, Deserialize, Unexpected, Visitor};
 use super::super::Size;
 
 
-const EXPECTING_MSG: &'static str = "numeric size, or \"shrink\"";
+const EXPECTING_MSG: &'static str = "numeric size, \"shrink\" or \"fit\"";
 
 
 impl<'de> Deserialize<'de> for Size {
@@ -82,7 +82,8 @@ impl FromStr for Size {
 
     fn from_str(v: &str) -> Result<Self, Self::Err> {
         match v.trim().to_lowercase().as_str() {
-            "shrink" | "fit" | "flex" => Ok(Size::Shrink),
+            "shrink" => Ok(Size::Shrink),
+            "fit" | "flex" => Ok(Size::Fit),
             // We can allow stringified numbers too,
             // just don't have it mentioned anywhere :)
             s => s.parse::<f32>().map(Into::into)

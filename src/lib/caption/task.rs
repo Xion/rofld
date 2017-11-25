@@ -167,13 +167,10 @@ impl<Tl, Fl> CaptionTask<Tl, Fl>
         let alignment = (caption.halign, caption.valign);
 
         let text_size = match caption.size {
-            Size::Fixed(s) => s,
-            // TODO: change ::Shrink to ::Fit, and make ::Shrink use text::fit_line instead
-            // (so that it can be used to ensure a single line won't be broken up
-            // while still getting shrunk if necessary to be completely visible)
-            Size::Shrink => text::fit_text(rect, &caption.text, &*font)
-                .unwrap_or(DEFAULT_TEXT_SIZE)
-        };
+            Size::Fixed(s) => Some(s),
+            Size::Shrink => text::fit_line(rect.width(), &caption.text, &*font),
+            Size::Fit => text::fit_text(rect, &caption.text, &*font),
+        }.unwrap_or(DEFAULT_TEXT_SIZE);
 
         // Draw four copies of the text, shifted in four diagonal directions,
         // to create the basis for an outline.

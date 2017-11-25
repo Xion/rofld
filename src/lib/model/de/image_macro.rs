@@ -299,17 +299,6 @@ impl<'de> Visitor<'de> for ImageMacroVisitor {
             caption.text = normalize_text(&caption.text)?;
         }
 
-        // TODO: support shrinking for multiline texts as well
-        // (will require doing the line break + checking if the resulting text
-        // fits by height, too, for each size we try in text::fit_line
-        // (or more like text::fit_text))
-        for caption in &captions {
-            if caption.size == Size::Shrink && caption.text.contains("\n") {
-                return Err(de::Error::custom(
-                    "\"size\": \"shrink\" is only supported for single-line captions"));
-            }
-        }
-
         let template = template.ok_or_else(|| de::Error::missing_field("template"))?;
         Ok(ImageMacro{template, width, height, captions})
     }
