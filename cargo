@@ -4,24 +4,22 @@
 BIN="$0"
 ARG="$1" ; shift
 
+
 # In case of empty or flag-only command line, pass through to Cargo directly
 if [ -z "$ARG" ] || case $ARG in -*) ;; *) false;; esac; then
     cargo "$ARG" "$@"
     exit $?
 fi
 
-# Recognize some common commands and apply them to both crates
+# Recognize commands that vanilla Cargo can handle for workspaces
+# and pass them directly, too
 case "$ARG" in
     build|check|clean|test)
-        for path in ./src/* ; do
-            name="$(basename "$path")"
-            if [ -d "./src/$name" ]; then
-                "$BIN" "$name" "$ARG" "$@" || exit 1
-            fi
-        done
+        cargo "$ARG" "$@"
         exit $?
         ;;
 esac
+
 
 # Otherwise treat the first argument as crate moniker
 CRATE="$ARG"
