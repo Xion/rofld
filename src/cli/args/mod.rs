@@ -128,6 +128,7 @@ pub fn create_parser<'p>() -> Parser<'p> {
         .arg(Arg::with_name(OPT_OUTPUT)
             .long("output").short("o")
             .required(false)
+            .takes_value(true)
             .help("File to write the rendered image to")
             .long_help(concat!(
                 "What file should the final image be written to.\n\n",
